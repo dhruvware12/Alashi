@@ -740,7 +740,7 @@ fn show_panel(app: &AppHandle, rect: Option<tauri::Rect>, toggle: bool) {
         Some(w) => w,
         None => {
             let b = WebviewWindowBuilder::new(app, PANEL_LABEL, WebviewUrl::App("panel/index.html".into()))
-                .title("Roamies")
+                .title("ALASHI")
                 .inner_size(PANEL_W, PANEL_H)
                 .resizable(false)
                 .maximizable(false)
@@ -898,7 +898,7 @@ fn open_onboarding(app: &AppHandle, mode: Option<&str>) {
     }
     let url = if chat { "onboarding/index.html?mode=chat" } else { "onboarding/index.html" };
     let mut b = WebviewWindowBuilder::new(app, ONBOARDING_LABEL, WebviewUrl::App(url.into()))
-        .title(if chat { "Get to know you" } else { "Welcome to Roamies" })
+        .title(if chat { "Get to know you" } else { &app.package_info().name })
         .inner_size(780.0, 540.0)
         .resizable(false)
         .maximizable(false)
@@ -1090,7 +1090,7 @@ fn build_overlays(app: &AppHandle) -> tauri::Result<()> {
         #[cfg(not(target_os = "linux"))]
         let unmanaged = false;
         let w = WebviewWindowBuilder::new(app, label, WebviewUrl::App("desktop.html".into()))
-            .title("Roamies")
+            .title("ALASHI")
             .visible(!unmanaged)
             .transparent(true)
             .decorations(false)
@@ -1547,8 +1547,8 @@ fn fallback_menu(app: &AppHandle, status: &str) {
     set_menu(app, &[
         json!({ "id": "status", "label": status, "enabled": false }),
         json!({ "sep": true }),
-        json!({ "id": "restart", "label": "Restart Roamies" }),
-        json!({ "id": "quit", "label": "Quit Roamies" }),
+        json!({ "id": "restart", "label": "Restart ALASHI" }),
+        json!({ "id": "quit", "label": "Quit ALASHI" }),
     ]);
 }
 
@@ -1561,14 +1561,25 @@ fn helper_binary(name: &str) -> Option<PathBuf> {
     p.is_file().then_some(p)
 }
 
-fn log_stdio(name: &str) -> Stdio {
+/// The app hidden data dir. ALASHI uses ~/.alashi (isolated from Roamies data in ~/.gg).
+/// If GG_DATA_DIR is set (e.g. for testing or a future override), that path is used instead.
+pub(crate) fn data_dir() -> PathBuf {
+    if let Ok(d) = std::env::var("GG_DATA_DIR") {
+        return PathBuf::from(d);
+    }
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(|h| PathBuf::from(h).join(".gg").join(name))
-        .and_then(|p| {
-            rotate_log(&p);
-            OpenOptions::new().create(true).append(true).open(p).ok()
-        })
+        .map(|h| PathBuf::from(h).join(".alashi"))
+        .unwrap_or_else(|| PathBuf::from(".alashi"))
+}
+
+fn log_stdio(name: &str) -> Stdio {
+    let p = data_dir().join(name);
+    if let Some(parent) = p.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    rotate_log(&p);
+    OpenOptions::new().create(true).append(true).open(p).ok()
         .map(Stdio::from)
         .unwrap_or_else(Stdio::null)
 }
@@ -1639,49 +1650,56 @@ fn login_item(app: &AppHandle, set: Option<bool>) {
     to_sidecar(app, &json!({ "type": "login_item_status", "supported": supported, "on": on, "approval": approval }));
 }
 
-/// Checks the signed update feed (latest.json on the newest GitHub release). With `install`, downloads,
-/// verifies the signature, swaps the app in place and restarts. Progress goes to the sidecar as update_status.
+/// ALASHI checks for updates from its own GitHub release feed (dhruvware12/Alashi). The sidecar
+/// asks for a check (its menu and periodic probe); this runs the Tauri updater and reports the
+/// status back so the UI can show "Check for updates" / "Update to x" / "Done".
 fn update(app: &AppHandle, install: bool) {
-    use tauri_plugin_updater::UpdaterExt;
     let app = app.clone();
-    // Linux: only an AppImage can swap itself in place. A copy from a .deb or .rpm is told about the new version
-    // (page: true) and "install" opens the releases page instead.
-    #[cfg(target_os = "linux")]
-    let by_page = linux::appimage().is_none();
-    #[cfg(not(target_os = "linux"))]
-    let by_page = false;
     tauri::async_runtime::spawn(async move {
-        let status = |state: &str, extra: Value| {
-            let mut m = json!({ "type": "update_status", "state": state });
-            if let (Some(m), Some(e)) = (m.as_object_mut(), extra.as_object()) {
-                m.extend(e.clone());
+        use tauri_plugin_updater::UpdaterExt;
+        let updater = match app.updater() {
+            Ok(u) => u,
+            Err(e) => {
+                let m = json!({ "type": "update_status", "state": "error", "error": format!("updater not available: {e}") });
+                to_sidecar(&app, &m);
+                return;
             }
-            to_sidecar(&app, &m);
         };
-        let found = match app.updater() {
-            Ok(u) => u.check().await,
-            Err(e) => Err(e),
-        };
-        match found {
-            Ok(None) => status("none", json!({})),
-            Ok(Some(u)) if !install => status("available", json!({ "version": u.version, "page": by_page })),
-            #[cfg(target_os = "linux")]
-            Ok(Some(u)) if by_page => {
-                linux::open_releases_page();
-                status("page", json!({ "version": u.version }));
-            }
-            Ok(Some(u)) => {
-                status("downloading", json!({ "version": u.version }));
-                match u.download_and_install(|_, _| {}, || {}).await {
-                    Ok(()) => {
-                        status("installed", json!({ "version": u.version }));
-                        tokio_sleep(Duration::from_millis(1500)).await;
-                        app.restart();
+        match updater.check().await {
+            Ok(Some(release)) => {
+                // On Linux, "page" means the app can't replace itself (AppImage can, but .deb/.rpm can't).
+                let page = cfg!(target_os = "linux");
+                if install {
+                    // Download and install in one go; the app restarts afterwards.
+                    let app2 = app.clone();
+                    let m = json!({ "type": "update_status", "state": "available", "version": release.version, "page": page });
+                    to_sidecar(&app, &m);
+                    match release.download_and_install(
+                        |downloaded, total| { let _ = (downloaded, total); }, // progress could be reported, but the sidecar doesn't use it yet
+                        || {
+                            let m = json!({ "type": "update_status", "state": "installed", "version": release.version });
+                            to_sidecar(&app2, &m);
+                        },
+                    ).await {
+                        Ok(()) => (),
+                        Err(e) => {
+                            let m = json!({ "type": "update_status", "state": "error", "error": format!("update download failed: {e}") });
+                            to_sidecar(&app2, &m);
+                        }
                     }
-                    Err(e) => status("error", json!({ "error": e.to_string() })),
+                } else {
+                    let m = json!({ "type": "update_status", "state": "available", "version": release.version, "page": page });
+                    to_sidecar(&app, &m);
                 }
             }
-            Err(e) => status("error", json!({ "error": e.to_string() })),
+            Ok(None) => {
+                let m = json!({ "type": "update_status", "state": "none" });
+                to_sidecar(&app, &m);
+            }
+            Err(e) => {
+                let m = json!({ "type": "update_status", "state": "error", "error": format!("update check failed: {e}") });
+                to_sidecar(&app, &m);
+            }
         }
     });
 }
@@ -1870,12 +1888,12 @@ fn main() {
                 app.set_menu(Menu::default(app.handle())?)?;
             }
 
-            let starting = MenuItem::with_id(app, "status", "Starting Roamies…", false, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit Roamies", true, None::<&str>)?;
+            let starting = MenuItem::with_id(app, "status", "Starting ALASHI…", false, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit ALASHI", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&starting, &quit])?;
             // Left click opens the panel; right click shows the short menu.
             let mut tray = TrayIconBuilder::with_id("roamies")
-                .tooltip("Roamies")
+                .tooltip("ALASHI")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, e| {

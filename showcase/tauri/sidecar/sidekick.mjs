@@ -144,7 +144,7 @@ const sizeNow = () => (SIZES.some(([s]) => s === config.size) ? config.size : 'd
 // config as fishVoice, so the voice comes from the look and that setting is no longer read. (With Gemini as the
 // voice, it's the one Gemini voice the user picked, whatever the look.)
 const LOOKS = [
-  ['classic', 'Roamie', DEFAULT_VOICE],
+  ['classic', 'ALASHI', DEFAULT_VOICE],
   ['jarvis', 'JARVIS', 'e13fa398a7f445a685316a3de6089ce7'],
   ['glayos', 'GlayOS', 'ee885900b0874d12b1c3439d1e56cc95'],
   ['ultren', 'Ultren', '06cfdb3653a4496983d6ad77f98cc184'],
@@ -1814,14 +1814,14 @@ function onUpdateStatus(m) {
     // Say it once per version; the menu item stays until it's installed.
     if (manual || update.told !== m.version) {
       update.told = m.version;
-      if (update.page) say(`Roamies ${m.version} is out. Pick Get Roamies ${m.version} in my ${TRAY} icon's menu for the download page.`, 'happy');
-      else say(`Roamies ${m.version} is ready. ${LINUX ? `Open my ${TRAY} icon's menu` : `Click my ${TRAY} icon`} and pick Install and Restart. I'll be right back.`, 'happy');
+      if (update.page) say(`ALASHI ${m.version} is out. Pick Get ALASHI ${m.version} in my ${TRAY} icon's menu for the download page.`, 'happy');
+      else say(`ALASHI ${m.version} is ready. ${LINUX ? `Open my ${TRAY} icon's menu` : `Click my ${TRAY} icon`} and pick Install and Restart. I'll be right back.`, 'happy');
     }
   } else if (m.state === 'page') {
     update.installing = false; menu();
-    say(`I opened the download page for Roamies ${m.version}. Install it the way you installed me.`, 'happy');
+    say(`I opened the download page for ALASHI ${m.version}. Install it the way you installed me.`, 'happy');
   } else if (m.state === 'downloading') {
-    say(`Downloading Roamies ${m.version}…`, 'determined');
+    say(`Downloading ALASHI ${m.version}…`, 'determined');
   } else if (m.state === 'installed') {
     update.done = m.version; update.installing = false; panel();
     say(`Installed ${m.version}. Restarting!`, 'happy');

@@ -217,11 +217,11 @@
     const u = state.update, b = $('head-update'), v = u.available;
     const fresh = u.result?.ok && Date.now() - (u.result.at ?? 0) < FRESH;
     const [label, aria, kind, off] =
-      u.done ? ['Done', `Roamies ${u.done} is installed. Restarting`, 'ghost', true]
-      : u.installing ? ['Updating…', `Installing Roamies ${v}`, 'ghost', true]
-      : v ? (u.page ? [`Get ${v}`, `Open the download page for Roamies ${v}`, 'primary', false] : [`Update to ${v}`, `Install Roamies ${v} and restart`, 'primary', false])
+      u.done ? ['Done', `ALASHI ${u.done} is installed. Restarting`, 'ghost', true]
+      : u.installing ? ['Updating…', `Installing ALASHI ${v}`, 'ghost', true]
+      : v ? (u.page ? [`Get ${v}`, `Open the download page for ALASHI ${v}`, 'primary', false] : [`Update to ${v}`, `Install ALASHI ${v} and restart`, 'primary', false])
       : u.checking ? ['Checking…', 'Checking for updates', 'ghost', true]
-      : fresh ? ['Up to date', `Roamies ${state.version} is up to date`, 'ghost', true]
+      : fresh ? ['Up to date', `ALASHI ${state.version} is up to date`, 'ghost', true]
       : u.result ? ['Check again', "Couldn't check for updates. Check again", 'ghost', false]
       : ['Check for updates', 'Check for updates', 'ghost', false];
     b.hidden = false; b.textContent = label; b.disabled = off;
@@ -235,10 +235,10 @@
   // Quit asks first: the first press turns it into Confirm for 4 s, the second quits.
   const quitB = $('head-quit');
   let quitTimer = 0;
-  const unarmQuit = () => { clearTimeout(quitTimer); quitB.setAttribute('aria-pressed', 'false'); quitB.setAttribute('aria-label', 'Quit Roamies'); };
+  const unarmQuit = () => { clearTimeout(quitTimer); quitB.setAttribute('aria-pressed', 'false'); quitB.setAttribute('aria-label', 'Quit ALASHI'); };
   quitB.addEventListener('click', () => {
     if (quitB.getAttribute('aria-pressed') === 'true') { unarmQuit(); act('quit'); return; }
-    quitB.setAttribute('aria-pressed', 'true'); quitB.setAttribute('aria-label', 'Confirm: quit Roamies');
+    quitB.setAttribute('aria-pressed', 'true'); quitB.setAttribute('aria-label', 'Confirm: quit ALASHI');
     quitTimer = setTimeout(unarmQuit, 4000);
   });
   function mark(page, why) {
@@ -249,8 +249,8 @@
     if (sr) { if (why) sr.textContent = ` (${why})`; else sr.remove(); }
   }
 
-  // ---------------------------------------------------------------- live Roamies
-  // The same LED renderer as on the desktop and in the setup guide, drawn small: one in the header (the Roamie
+  // ---------------------------------------------------------------- live ALASHI
+  // The same LED renderer as on the desktop and in the setup guide, drawn small: one in the header (the ALASHI
   // you have, reacting to what's going on) and one per look on the Appearance page. One loop draws them all,
   // only while the panel is up and each canvas is on screen.
   const LED = [[4, 16, 18], [14, 92, 96], [40, 196, 184], [120, 255, 226], [230, 255, 250]];
@@ -263,7 +263,7 @@
     think: (t) => ({ arms: 1, tl: [-0.08, 0.5 + Math.sin(t * 2) * 0.03], tr: [0.98, 0.34], mouth: Math.sin(t * 0.9) > 0.6 ? 'o' : 'flat', brow: 'raised' }),
     concerned: () => ({ arms: 0.7, tl: [-0.45, 0.95], tr: [0.45, 0.95], mouth: 'frown', brow: 'raised' }),
   };
-  // A Roamie on a canvas of w×h CSS px: the one on screen at half scale (the app's unit, every dot half size), so
+  // A ALASHI on a canvas of w×h CSS px: the one on screen at half scale (the app's unit, every dot half size), so
   // each size shows its own art (the full face, the small one, the pointer) at its real size next to the others.
   const ZOOM = 0.5, UNIT = 340;
   function liveRoamie(canvas, w, h, { look = 'classic', y = 0.56, form = 'default' } = {}) {
@@ -334,7 +334,7 @@
     if (seen.look && state.look !== seen.look) { avatar.setLook(state.look); avatar.act('wave'); quip(QUIPS[state.look] ?? 'Hi!'); }
     else avatar.setLook(state.look);
     avatar.setForm(state.size);
-    if (state.update.available && state.update.available !== seen.update && seen.look) { avatar.act('hype'); quip(`Roamies ${state.update.available} is here!`); }
+    if (state.update.available && state.update.available !== seen.update && seen.look) { avatar.act('hype'); quip(`ALASHI ${state.update.available} is here!`); }
     seen.look = state.look; seen.update = state.update.available;
   }
 
@@ -554,7 +554,7 @@
         el('span', { className: 'acct-name' }, p.label, p.on ? el('span', { className: 'led on', role: 'img', 'aria-label': p.method === 'local' ? 'Connected' : 'Signed in', 'data-tip': p.method === 'local' ? 'Connected' : 'Signed in' }) : null),
         p.on ? el('span', { className: 'row-btns' },
           p.key ? changeKey(p) : null,
-          ui.key === p.id ? null : armed(p.signedIn && !p.keySaved ? 'Sign out' : 'Remove', 'Confirm', `signout:${p.id}`, `signout:${p.id}`, `Remove ${p.label} from Roamies`))
+          ui.key === p.id ? null : armed(p.signedIn && !p.keySaved ? 'Sign out' : 'Remove', 'Confirm', `signout:${p.id}`, `signout:${p.id}`, `Remove ${p.label} from ALASHI`))
           : state.loggingIn === p.id ? el('span', { className: 'waiting', textContent: 'Signing in…' })
           : p.method === 'oauth' ? (p.key ? el('span', { className: 'links' }, signIn(p), addKey(p)) : signIn(p))
           : addKey(p)),
@@ -833,8 +833,8 @@
           el('p', { className: 'sub', textContent: 'Mic waits for you' }),
           picks('Mic waits for you', v.listenChoices.map((s) => [String(s), `${s} s`]), String(v.listenSecs), (x) => act(`listensecs:${x}`), 'listensecs')) : null,
         toggle('Listen after reminders', needs('Mic opens after a reminder, so you can say “snooze 10 minutes”.'), v.snoozeListen, () => act('snoozelisten'), 'snoozelisten'),
-        v.mac ? toggle('Wake word', needs(`Say “Hey ${v.wakeName || 'Roamies'}” to talk. Mic stays on.`), v.wakeWord, () => act('wakeword'), 'wakeword') : null,
-        v.mac ? el('div', { className: 'setting' }, el('span', {}, 'Wake word name', el('small', { textContent: `Hey ${v.wakeName || 'Roamies'}` })),
+        v.mac ? toggle('Wake word', needs(`Say “Hey ${v.wakeName || 'ALASHI'}” to talk. Mic stays on.`), v.wakeWord, () => act('wakeword'), 'wakeword') : null,
+        v.mac ? el('div', { className: 'setting' }, el('span', {}, 'Wake word name', el('small', { textContent: `Hey ${v.wakeName || 'ALASHI'}` })),
           link('Change', () => act('wakename'), { k: 'wakename', aria: 'Change the wake word name' })) : null))];
   }
   // The keys that work from anywhere. On Wayland no app may hold its own, so it lists the commands to bind instead.
@@ -896,19 +896,19 @@
             link('Stop', () => act('syncstop'), { k: 'syncstop', aria: 'Stop syncing memory' })] : link('Set up', () => act('syncsetup'), { k: 'syncsetup', aria: 'Set up memory sync' })) : null),
     ];
   }
-  // Who made Roamies: Ken, live (he's drawn like the looks but isn't one), and where to find him.
+  // Who made ALASHI: Ken, live (he's drawn like the looks but isn't one), and where to find him.
   const KEN = [
     ['Skool', 'Learn with Ken, or support him', 'https://www.skool.com/kenkai', "Open Ken Kai's Skool community"],
     ['YouTube', '@kenkaidoesai', 'https://www.youtube.com/@kenkaidoesai', "Open Ken Kai's YouTube channel"],
     ['TikTok', '@ggkenkai', 'https://www.tiktok.com/@ggkenkai', "Open Ken Kai's TikTok"],
-    ['Source code', 'Open source under AGPL-3.0', 'https://github.com/KenKaiii/Roamies', 'Open the Roamies source code on GitHub'],
+    ['Source code', 'Open source under AGPL-3.0', 'https://github.com/KenKaiii/ALASHI', 'Open the ALASHI source code on GitHub'],
   ];
   let ken = null;
   function maker() {
     if (!ken) {
       const cv = el('canvas', { 'aria-hidden': 'true' });
       const r = liveRoamie(cv, 100, 74, { look: 'ken', y: 0.55 });
-      const card = el('div', { className: 'maker' }, cv, el('span', {}, 'Ken Kai', el('small', { textContent: 'Creator of Roamies' })));
+      const card = el('div', { className: 'maker' }, cv, el('span', {}, 'Ken Kai', el('small', { textContent: 'Creator of ALASHI' })));
       let waved = 0;
       card.addEventListener('pointerenter', () => { if (r && Date.now() - waved > 3500) { waved = Date.now(); r.act('wave'); } });
       r?.appear('crt');
@@ -1140,7 +1140,7 @@
 
   // ---------------------------------------------------------------- browser preview
   function preview() {
-    document.title = 'Roamies panel (preview with sample data)';
+    document.title = 'ALASHI panel (preview with sample data)';
     const at = Date.now(), q = new URLSearchParams(location.search);
     const CLAUDE_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
     const s = {
@@ -1173,9 +1173,9 @@
         { at: at - 9.4 * 60e3, kind: 'ask', text: 'what does this error mean' },
       ],
       usage: { requests: 14, tokens: 31240 },
-      facts: [{ id: 'f1', text: 'Prefers short answers in the morning' }, { id: 'f2', text: 'Working on the Roamies 1.0 launch, due end of month' }, { id: 'f3', text: 'Has a cat called Miso' }],
+      facts: [{ id: 'f1', text: 'Prefers short answers in the morning' }, { id: 'f2', text: 'Working on the ALASHI 1.0 launch, due end of month' }, { id: 'f3', text: 'Has a cat called Miso' }],
       commitments: [{ id: 'c1', text: 'Send the launch email', when: 'Fri 7 Nov, 10:00', overdue: false }, { id: 'c2', text: 'Book the dentist', when: 'Mon 3 Nov, 09:00', overdue: true }],
-      name: 'Roamie', look: 'classic', looks: [['classic', 'Roamie'], ['jarvis', 'JARVIS'], ['glayos', 'GlayOS'], ['ultren', 'Ultren'], ['anime', 'Anime Girl'], ['sarah', 'Sarah'], ['adrian', 'Adrian'], ['rita', 'Rita X']],
+      name: 'ALASHI', look: 'classic', looks: [['classic', 'ALASHI'], ['jarvis', 'JARVIS'], ['glayos', 'GlayOS'], ['ultren', 'Ultren'], ['anime', 'Anime Girl'], ['sarah', 'ALASHI'], ['adrian', 'Adrian'], ['rita', 'Rita X']],
       size: 'default', sizes: [['default', 'Default'], ['small', 'Small'], ['cursor', 'Cursor']],
       replies: 'voice', fishKey: true, fishModel: 'drama-3', fishFree: false,
       // ?tts=gemini: Gemini as the voice, its key saved.
@@ -1201,7 +1201,7 @@
       fallbacks: { on: true, slots: ['gemini:gemini-3.8-flash', ''], limited: [{ label: 'Claude', until: at + 40 * 60e3 }], using: 'gemini:gemini-3.8-flash' },
       // Effort per slot: '' is automatic (low); computer use is set to High, and backup 1 (Gemini, which only thinks at High) too.
       efforts: { default: '', computer: 'high', code: '', agents: '', draw: '', web: '', backup1: 'high', backup2: '' },
-      voice: { on: true, keys: '⌃⌥', ready: true, mac: true, lang: 'auto', langOnline: null, studioSpeak: 'short', mute: true, autoListen: q.has('listen'), listenEvery: false, listenSecs: 8, listenChoices: [3, 5, 8, 10, 15], mics: [{ id: 'BuiltIn', name: 'MacBook Pro Microphone' }, { id: 'airpods', name: 'AirPods Pro' }], mic: '', micAuto: 'MacBook Pro Microphone', wakeWord: false, wakeName: 'Roamies', download: null }, askKeys: '⌥⌘', brief: { on: true, todoist: false, canTodoist: true }, focus: { until: null, task: '', list: ['YouTube', 'Reddit', 'X', 'Steam', 'Netflix'], custom: false }, sync: { dir: '', at: null, error: null, paused: false }, shortcuts: { talk: { value: 'control+option', pairs: [['control+option', 'Control+Option'], ['option+command', 'Option+Command'], ['control+command', 'Control+Command'], ['control+shift', 'Control+Shift'], ['option+shift', 'Option+Shift']] }, keys: [{ id: 'summon', words: 'Control+Option+S' }, { id: 'snap', words: 'Control+Option+A' }, { id: 'list', words: 'Control+Option+L' }] }, writeKeys: { value: 'option+command', pairs: [['option+command', 'Option+Command'], ['control+command', 'Control+Command'], ['control+shift', 'Control+Shift'], ['option+shift', 'Option+Shift']] },
+      voice: { on: true, keys: '⌃⌥', ready: true, mac: true, lang: 'auto', langOnline: null, studioSpeak: 'short', mute: true, autoListen: q.has('listen'), listenEvery: false, listenSecs: 8, listenChoices: [3, 5, 8, 10, 15], mics: [{ id: 'BuiltIn', name: 'MacBook Pro Microphone' }, { id: 'airpods', name: 'AirPods Pro' }], mic: '', micAuto: 'MacBook Pro Microphone', wakeWord: false, wakeName: 'ALASHI', download: null }, askKeys: '⌥⌘', brief: { on: true, todoist: false, canTodoist: true }, focus: { until: null, task: '', list: ['YouTube', 'Reddit', 'X', 'Steam', 'Netflix'], custom: false }, sync: { dir: '', at: null, error: null, paused: false }, shortcuts: { talk: { value: 'control+option', pairs: [['control+option', 'Control+Option'], ['option+command', 'Option+Command'], ['control+command', 'Control+Command'], ['control+shift', 'Control+Shift'], ['option+shift', 'Option+Shift']] }, keys: [{ id: 'summon', words: 'Control+Option+S' }, { id: 'snap', words: 'Control+Option+A' }, { id: 'list', words: 'Control+Option+L' }] }, writeKeys: { value: 'option+command', pairs: [['option+command', 'Option+Command'], ['control+command', 'Control+Command'], ['control+shift', 'Control+Shift'], ['option+shift', 'Option+Shift']] },
       sound: true, notch: q.has('notch') ? 'drop' : null, actions: false, skipAllow: false, login: { on: true },
       update: { available: new URLSearchParams(location.search).has('update') && new URLSearchParams(location.search).get('update') !== 'failed' ? '0.9.1' : null, installing: false, checking: false, result: null },
       intro: false,

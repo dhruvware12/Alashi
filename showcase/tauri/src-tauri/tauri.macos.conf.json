@@ -22,7 +22,7 @@
         }
       },
       "hardenedRuntime": true,
-      "entitlements": "Roamies.entitlements"
+      "entitlements": "ALASHI.entitlements"
     }
   }
 }

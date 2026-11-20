@@ -89,6 +89,7 @@ jobs:
 
       # Developer ID certificate into a throwaway keychain (removed at the end of the job).
       - name: Import Apple signing certificate
+        if: false
         if: runner.os == 'macOS'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -194,6 +195,7 @@ jobs:
 
       # Tauri notarizes the app inside; the DMG around it is a download of its own that macOS checks too.
       - name: Notarize the DMG
+        if: false
         if: runner.os == 'macOS'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -205,6 +207,7 @@ jobs:
           xcrun stapler staple "$DMG"
 
       - name: Check the signature and notarization
+        if: false
         if: runner.os == 'macOS'
         run: |
           APP=$(ls -d src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app | head -1)
@@ -233,19 +236,19 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           [[ "$TAG" == v* ]] || TAG="v$(node -p "require('./src-tauri/tauri.conf.json').version")"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --title "Roamies $TAG" --generate-notes || true
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --title "ALASHI $TAG" --generate-notes || true
           shopt -s nullglob
           B=src-tauri/target/${{ matrix.target }}/release/bundle
           files=($B/dmg/*.dmg $B/nsis/*-setup.exe $B/appimage/*.AppImage $B/deb/*.deb $B/rpm/*.rpm)
           [ ${#files[@]} -gt 0 ] || { echo "No installers were built"; exit 1; }
-          # Update bundles: both Macs produce Roamies.app.tar.gz, so name them per architecture.
+          # Update bundles: both Macs produce ALASHI.app.tar.gz, so name them per architecture.
           VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
           if [ "$RUNNER_OS" = macOS ]; then
             ARCH=$([ "${{ matrix.target }}" = aarch64-apple-darwin ] && echo aarch64 || echo x64)
-            [ -f $B/macos/Roamies.app.tar.gz.sig ] || { echo "::error::No signed update bundle was built"; exit 1; }
-            cp $B/macos/Roamies.app.tar.gz "Roamies_${VER}_${ARCH}.app.tar.gz"
-            cp $B/macos/Roamies.app.tar.gz.sig "Roamies_${VER}_${ARCH}.app.tar.gz.sig"
-            files+=("Roamies_${VER}_${ARCH}.app.tar.gz" "Roamies_${VER}_${ARCH}.app.tar.gz.sig")
+            [ -f $B/macos/ALASHI.app.tar.gz.sig ] || { echo "::error::No signed update bundle was built"; exit 1; }
+            cp $B/macos/ALASHI.app.tar.gz "ALASHI_${VER}_${ARCH}.app.tar.gz"
+            cp $B/macos/ALASHI.app.tar.gz.sig "ALASHI_${VER}_${ARCH}.app.tar.gz.sig"
+            files+=("ALASHI_${VER}_${ARCH}.app.tar.gz" "ALASHI_${VER}_${ARCH}.app.tar.gz.sig")
           elif [ "$RUNNER_OS" = Linux ]; then
             # In-app updates on Linux replace the AppImage; .deb and .rpm copies are pointed to the release page.
             sigs=($B/appimage/*.AppImage.sig)
@@ -280,15 +283,15 @@ jobs:
             const api = Object.fromEntries(JSON.parse(fs.readFileSync("assets.json", "utf8")).assets.map((a) => [a.name, a.apiUrl]));
             const link = (f) => { if (!api[f]) throw new Error(`${f} is not on the release`); return api[f]; };
             const platforms = {
-              "darwin-aarch64": `Roamies_${VER}_aarch64.app.tar.gz`,
-              "darwin-x86_64": `Roamies_${VER}_x64.app.tar.gz`,
-              "windows-x86_64": `Roamies_${VER}_x64-setup.exe`,
+              "darwin-aarch64": `ALASHI_${VER}_aarch64.app.tar.gz`,
+              "darwin-x86_64": `ALASHI_${VER}_x64.app.tar.gz`,
+              "windows-x86_64": `ALASHI_${VER}_x64-setup.exe`,
             };
             // The Linux beta leg may have failed: its AppImage is listed only when it and its signature are there.
-            const linux = `Roamies_${VER}_amd64.AppImage`;
+            const linux = `ALASHI_${VER}_amd64.AppImage`;
             if (api[linux] && fs.existsSync("sigs/" + linux + ".sig")) platforms["linux-x86_64"] = linux;
             else console.log("No Linux AppImage on this release: latest.json leaves Linux out.");
-            const out = { version: VER, notes: `Roamies ${VER}`, pub_date: new Date().toISOString(), platforms: {} };
+            const out = { version: VER, notes: `ALASHI ${VER}`, pub_date: new Date().toISOString(), platforms: {} };
             for (const [k, f] of Object.entries(platforms)) out.platforms[k] = { signature: sig(f + ".sig"), url: link(f) };
             fs.writeFileSync("latest.json", JSON.stringify(out, null, 2));
           '

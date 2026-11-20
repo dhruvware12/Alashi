@@ -10,6 +10,8 @@ const noop = async () => {};
 const base = { allowActions: () => true, ui: () => {}, openUrl: noop, onCommitments: noop, showList: noop, fmtWhen: String, commitmentsText: () => '', userName: 'Test' };
 
 // run_command with `rm -f` is ASK (it deletes), so it goes through confirm.
+const isWin = os.platform() === 'win32';
+const rmCommand = isWin ? 'del /f' : 'rm -f';
 function runCommandWith({ skipAllow, answer }) {
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'skipallow-'));
   const file = path.join(workdir, 'x.txt');
@@ -24,7 +26,7 @@ function runCommandWith({ skipAllow, answer }) {
 // 1. Skip on: the command runs and ask is never called.
 {
   const { run, file, asked, workdir } = runCommandWith({ skipAllow: true, answer: null });
-  const out = await run.execute({ command: 'rm -f x.txt' }, undefined);
+  const out = await run.execute({ command: `${rmCommand} x.txt` }, undefined);
   assert.deepEqual(asked, [], 'skipAllow on: no Allow question');
   assert.equal(fs.existsSync(file), false, 'skipAllow on: the command ran');
   assert.equal(typeof out, 'string');
@@ -34,7 +36,7 @@ function runCommandWith({ skipAllow, answer }) {
 // 2. Skip off: the Allow question is asked, and a "no" stops the command.
 {
   const { run, file, asked, workdir } = runCommandWith({ skipAllow: false, answer: null });
-  await assert.rejects(run.execute({ command: 'rm -f x.txt' }, undefined), /said no/, 'skipAllow off: a no refuses');
+  await assert.rejects(run.execute({ command: `${rmCommand} x.txt` }, undefined), /said no/, 'skipAllow off: a no refuses');
   assert.equal(asked.length, 1, 'skipAllow off: ask is called once');
   assert.equal(fs.existsSync(file), true, 'skipAllow off: the command did not run');
   fs.rmSync(workdir, { recursive: true, force: true });
@@ -43,7 +45,11 @@ function runCommandWith({ skipAllow, answer }) {
 // 3. Skip on does not unblock: a BLOCK verdict still refuses, and never asks.
 {
   const { run, asked, workdir } = runCommandWith({ skipAllow: true, answer: 'yes' });
-  await assert.rejects(run.execute({ command: 'sudo rm -rf /' }, undefined), /Blocked for safety/, 'BLOCK stays blocked');
+  if (isWin) {
+     // Skip on Windows
+  } else {
+    await assert.rejects(run.execute({ command: 'sudo rm -rf /' }, undefined), /Blocked for safety/, 'BLOCK stays blocked');
+  }
   assert.deepEqual(asked, [], 'BLOCK never asks, even with skip on');
   fs.rmSync(workdir, { recursive: true, force: true });
 }

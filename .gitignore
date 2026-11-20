@@ -18,3 +18,16 @@ node_modules/
 *.tmp
 .vscode/
 .idea/
+
+# ALASHI signing key (private) - keep offline, do not commit
+alashi-update.key
+alashi-update.key.pub
+# Any other .key files
+a*.key
+# ALASHI local runtime data
+Data/
+
+# Local build and verification files
+build_output.txt
+showcase/tauri/verify-alashi.ps1
+check-sidekick-diff.ps1

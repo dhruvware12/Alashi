@@ -1,4 +1,4 @@
-// Sidekick storage: conversation sessions and the commitments memory, under ~/.gg/sidekick/.
+// Sidekick storage: conversation sessions and the commitments memory, under GG_DATA_DIR/sidekick/ (or ~/.gg/sidekick/ when unconfigured).
 // Writes are atomic (temp file, fsync, rename) and serialised per file, files are private (0600),
 // and a file that fails to parse is kept aside as *.corrupt-<time> instead of being overwritten.
 import { createHash, randomBytes } from 'node:crypto';
@@ -7,7 +7,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-export const DIR = process.env.ROAMIES_DATA_DIR ? path.join(process.env.ROAMIES_DATA_DIR, 'sidekick') : path.join(os.homedir(), '.gg', 'sidekick');
+export const DIR = process.env.ROAMIES_DATA_DIR ? path.join(process.env.ROAMIES_DATA_DIR, 'sidekick') : path.join(process.env.GG_DATA_DIR || path.join(os.homedir(), '.gg'), 'sidekick');
 const SESSIONS = path.join(DIR, 'sessions');
 const MEMORY = path.join(DIR, 'memory.json');
 const SESSION_FILE = /^\d{8}-\d{6}-[a-z0-9]{6}\.json$/;

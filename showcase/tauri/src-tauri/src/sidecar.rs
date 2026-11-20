@@ -2,6 +2,7 @@
 
 use super::*;
 use std::io::{BufRead, BufReader};
+use tauri::Manager;
 
 fn find_node() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("ROAMIES_NODE") {
@@ -41,20 +42,24 @@ const BACKOFF_SECS: [u64; 3] = [1, 3, 10];
 
 pub(crate) fn spawn_sidecar(app: &AppHandle) {
     let Some(node) = find_node() else {
-        fallback_menu(app, "Roamies is missing a part; reinstall it");
+        fallback_menu(app, "ALASHI is missing a part; reinstall it");
         return;
     };
     let Some(script) = sidecar_script(app) else {
-        fallback_menu(app, "Roamies is missing a part; reinstall it");
+        fallback_menu(app, "ALASHI is missing a part; reinstall it");
         return;
     };
     let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let stderr = log_stdio("sidekick.log");
+    // Data isolation: ALASHI keeps its own hidden data dir (~/.alashi, in place of the shared ~/.gg).
+    // The sidecar's own GG_DATA_DIR defaults to ~/.gg when unset, so an unconfigured build is unchanged.
     let mut cmd = Command::new(node);
     hide_console(&mut cmd);
     cmd.arg(&script)
         .env("ROAMIES_VERSION", app.package_info().version.to_string())
         .env("ROAMIES_HANDS", helper_binary("roamies-hands").map(|p| p.to_string_lossy().into_owned()).unwrap_or_default())
+        .env("GG_DATA_DIR", data_dir())
+        .env("ROAMIES_APP_DIR", "ALASHI")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(stderr);

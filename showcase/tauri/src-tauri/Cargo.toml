@@ -1,11 +1,11 @@
 [package]
-name = "roamies"
+name = "alashi"
 version = "0.1.42"
 edition = "2021"
 license = "AGPL-3.0-only"
-description = "Roamies: AI desktop companions"
-repository = "https://github.com/KenKaiii/Roamies"
-homepage = "https://github.com/KenKaiii/Roamies"
+description = "ALASHI: AI desktop companion"
+repository = "https://github.com/dhruvware12/Alashi"
+homepage = "https://github.com/dhruvware12/Alashi"
 
 [build-dependencies]
 tauri-build = { version = "=2.7.4", features = [] }
