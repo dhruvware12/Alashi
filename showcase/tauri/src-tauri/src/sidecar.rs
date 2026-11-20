@@ -2,6 +2,8 @@
 
 use super::*;
 use std::io::{BufRead, BufReader};
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
 use tauri::Manager;
 
 fn find_node() -> Option<PathBuf> {
