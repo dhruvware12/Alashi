@@ -42,10 +42,21 @@ const BACKOFF_SECS: [u64; 3] = [1, 3, 10];
 
 pub(crate) fn spawn_sidecar(app: &AppHandle) {
     let Some(node) = find_node() else {
+        eprintln!(
+            "sidecar: Node.js not found (ROAMIES_NODE={:?}, PATH={:?}, roamies-node={:?})",
+            std::env::var("ROAMIES_NODE").ok(),
+            std::env::var("PATH").ok(),
+            helper_binary("roamies-node"),
+        );
         fallback_menu(app, "ALASHI is missing a part; reinstall it");
         return;
     };
     let Some(script) = sidecar_script(app) else {
+        eprintln!(
+            "sidecar: sidekick.mjs not found (resource_dir={:?}, CARGO_MANIFEST_DIR={})",
+            app.path().resource_dir().ok().map(|p| p.to_string_lossy().into_owned()),
+            env!("CARGO_MANIFEST_DIR"),
+        );
         fallback_menu(app, "ALASHI is missing a part; reinstall it");
         return;
     };
@@ -53,12 +64,15 @@ pub(crate) fn spawn_sidecar(app: &AppHandle) {
     let stderr = log_stdio("sidekick.log");
     // Data isolation: ALASHI keeps its own hidden data dir (~/.alashi, in place of the shared ~/.gg).
     // The sidecar's own GG_DATA_DIR defaults to ~/.gg when unset, so an unconfigured build is unchanged.
-    let mut cmd = Command::new(node);
+    let mut cmd = Command::new(&node);
     hide_console(&mut cmd);
     cmd.arg(&script)
         .env("ROAMIES_VERSION", app.package_info().version.to_string())
         .env("ROAMIES_HANDS", helper_binary("roamies-hands").map(|p| p.to_string_lossy().into_owned()).unwrap_or_default())
         .env("GG_DATA_DIR", data_dir())
+        // Tests and benchmarks set ROAMIES_DATA_DIR to an isolated folder; the sidecar inherits it from the parent
+        // environment (Command inherits the parent env by default), so no override is needed here. When unset,
+        // sidekick.mjs falls back to ~/.gg, keeping production behavior unchanged.
         .env("ROAMIES_APP_DIR", "ALASHI")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -73,9 +87,17 @@ pub(crate) fn spawn_sidecar(app: &AppHandle) {
         cmd.current_dir(dir);
     }
     own_group(&mut cmd);
+    eprintln!(
+        "sidecar: spawning {} {:?} (GG_DATA_DIR={:?}, ROAMIES_DATA_DIR={:?})",
+        node.display(),
+        script,
+        std::env::var("GG_DATA_DIR").ok(),
+        std::env::var("ROAMIES_DATA_DIR").ok(),
+    );
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
+            eprintln!("sidecar: spawn failed: {e}");
             fallback_menu(app, &format!("Roamies failed to start: {e}"));
             return;
         }
@@ -90,7 +112,21 @@ pub(crate) fn spawn_sidecar(app: &AppHandle) {
             let app2 = app.clone();
             let _ = app.run_on_main_thread(move || handle_sidecar(&app2, msg));
         }
-        end_orphans(pid, child.wait().ok());
+        let status = child.wait();
+        match status {
+            Ok(s) if s.success() => eprintln!("sidecar: exited cleanly (pid {pid})"),
+            Ok(s) => {
+                let code = s.code().map(|c| c.to_string()).unwrap_or_else(|| "?".to_string());
+                #[cfg(unix)]
+                let sig = s.signal().map(|s| s.to_string()).unwrap_or_default();
+                #[cfg(not(unix))]
+                let sig = String::new();
+                let extra = if sig.is_empty() { String::new() } else { format!(", signal {sig}") };
+                eprintln!("sidecar: exited with status {code} (pid {pid}){extra}");
+            }
+            Err(ref e) => eprintln!("sidecar: error waiting for child (pid {pid}): {e}"),
+        }
+        end_orphans(pid, status.ok());
         *app.state::<Sidecar>().0.lock().unwrap() = None;
         if QUITTING.load(Ordering::SeqCst) || GENERATION.load(Ordering::SeqCst) != generation {
             return;

@@ -122,16 +122,40 @@ jobs:
         run: |
           cat > "$RUNNER_TEMP/smoke.sh" <<'SH'
           set -u
-          export GG_DATA_DIR="$RUNNER_TEMP/roamies-data" ROAMIES_DATA_DIR="$RUNNER_TEMP/roamies-data" ROAMIES_TRACE=1
-          mkdir -p "$ROAMIES_DATA_DIR"
-          echo '{"onboarded":true,"setupVersion":2,"voice":false}' > "$ROAMIES_DATA_DIR/sidekick.json"
+          DATA="$RUNNER_TEMP/roamies-data"
+          export GG_DATA_DIR="$DATA" ROAMIES_DATA_DIR="$DATA" ROAMIES_TRACE=1
+          export ROAMIES_NODE="$(command -v node)"
+          if [ -z "$ROAMIES_NODE" ] || [ ! -x "$ROAMIES_NODE" ]; then
+            echo "ERROR: Node.js executable not found. PATH=$PATH"
+            exit 1
+          fi
+          echo "Using Node: $ROAMIES_NODE ($($ROAMIES_NODE --version 2>&1))"
+          SCRIPT="$(pwd)/sidecar/sidekick.mjs"
+          echo "Sidecar script: $SCRIPT (exists: $([ -f "$SCRIPT" ] && echo yes || echo NO))"
+          mkdir -p "$DATA"
+          echo '{"onboarded":true,"setupVersion":2,"voice":false}' > "$DATA/sidekick.json"
           src-tauri/target/debug/alashi > "$RUNNER_TEMP/app.log" 2>&1 &
           pid=$!
-          started=false
-          for _ in $(seq 60); do
+          # The sidecar's activity logs live under the data dir's sidekick/logs. The data dir is the
+          # forwarded ROAMIES_DATA_DIR, but ~/.gg is where it falls back if that env never reached the
+          # process, so "started" means a ' start ' line in either place.
+          find_start() {
+            local d l
+            for d in "$DATA" "$HOME/.gg"; do
+              [ -d "$d/sidekick/logs" ] || continue
+              for l in "$d"/sidekick/logs/*.log; do
+                [ -f "$l" ] || continue
+                grep -qs ' start ' "$l" && { echo "$l"; return 0; }
+              done
+            done
+            return 1
+          }
+          started=false; started_log=""
+          # Wait a bit longer for sidecar to start
+          for _ in $(seq 120); do
             sleep 1
             kill -0 $pid 2>/dev/null || break
-            if grep -qs ' start ' "$ROAMIES_DATA_DIR"/sidekick/logs/*.log; then started=true; break; fi
+            if found="$(find_start)"; then started_log="$found"; started=true; break; fi
           done
           shaped=false
           if $started; then
@@ -146,12 +170,29 @@ jobs:
           alive=false; kill -0 $pid 2>/dev/null && alive=true
           kill $pid 2>/dev/null
           if ! { $started && $alive && $shaped; }; then
-            echo "=== App Log ==="; tail -40 "$RUNNER_TEMP/app.log"
-            echo "=== Sidekick Log ==="; tail -40 "$ROAMIES_DATA_DIR/sidekick.log" 2>/dev/null
-            echo "=== Sidekick Activity Log ==="; tail -40 "$ROAMIES_DATA_DIR"/sidekick/logs/*.log 2>/dev/null
+            echo "=== Environment ==="
+            echo "ROAMIES_NODE=$ROAMIES_NODE"
+            echo "ROAMIES_DATA_DIR=GG_DATA_DIR=$DATA"
+            echo "HOME=$HOME"
+            echo "Sidecar script: $SCRIPT (exists: $([ -f "$SCRIPT" ] && echo yes || echo NO))"
+            echo "=== App Log (tail) ==="; tail -60 "$RUNNER_TEMP/app.log"
+            for d in "$DATA" "$HOME/.gg"; do
+              [ -d "$d" ] || continue
+              if [ -f "$d/sidekick.log" ]; then
+                echo "=== Sidekick stderr: $d/sidekick.log ==="; tail -60 "$d/sidekick.log"
+              fi
+              if [ -d "$d/sidekick/logs" ]; then
+                for log in "$d"/sidekick/logs/*.log; do
+                  [ -f "$log" ] || continue
+                  echo "=== Sidekick Activity Log: $log ==="; tail -60 "$log"
+                done
+              fi
+            done
+            echo "=== Data dir listing ==="; ls -laR "$DATA" 2>/dev/null
+            echo "=== ~/.gg listing ==="; ls -laR "$HOME/.gg" 2>/dev/null
             echo "Roamies didn't start properly (sidecar started: $started, still running: $alive, Roamie on screen: $shaped)"; exit 1
           fi
-          echo "Roamies started its sidecar and showed the Roamie (pid $pid)"
+          echo "Roamies started its sidecar and showed the Roamie (pid $pid, start log: ${started_log:-?})"
           SH
           dbus-run-session -- xvfb-run -a -s '-screen 0 1600x1000x24' bash "$RUNNER_TEMP/smoke.sh"
 
