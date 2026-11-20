@@ -442,7 +442,7 @@ export function createTools({ allowActions, ui, ask, openUrl, onCommitments, foc
   async function pageCheck() {
     if (!windowBound() || !ink.page || ink.active) return;
     const now = await frontPage();
-    if (now && ink.page && now !== ink.page && windowBound()) screenChanged('page');
+    if (now && ink.page && now.trim() !== ink.page.trim() && windowBound()) screenChanged('page');
   }
   // When another window comes to the front, or that window moves or closes, the drawing no longer sits on what it was about.
   function watchStale() {
