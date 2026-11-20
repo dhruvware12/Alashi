@@ -138,6 +138,8 @@ jobs:
 
       # build.sh copies the web files, bundles the sidecar, then runs `cargo tauri build`. On macOS, Tauri
       # signs with APPLE_SIGNING_IDENTITY and notarizes with APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID.
+      # Notarization only runs when all three Apple credentials are present and non-empty; otherwise Tauri
+      # skips it and the .app/.dmg are built without a notarization ticket.
       - name: Build, sign and notarize
         env:
           TAURI_BUNDLES: ${{ matrix.bundles }}
@@ -149,7 +151,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: ./build.sh release --target ${{ matrix.target }}
+        run: |
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            export APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+          else
+            unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+          fi
+          ./build.sh release --target ${{ matrix.target }}
 
       # CI only runs the debug build; this installs the real installer the way users do (silently, per user) and checks
       # every part landed, the helpers start from where they were installed, and the app starts its sidecar.
