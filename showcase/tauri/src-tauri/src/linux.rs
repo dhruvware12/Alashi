@@ -119,6 +119,25 @@ pub(crate) fn unmanaged_overlay() -> bool {
     })
 }
 
+/// Un-maximizes the overlay whenever a window manager maximizes it: a maximized window above a fullscreen app keeps
+/// GNOME's top bar and dock up (#78).
+pub(crate) fn keep_unmaximized(window: &tauri::WebviewWindow) {
+    let w = window.clone();
+    let _ = window.run_on_main_thread(move || {
+        use gtk::prelude::{GtkWindowExt, WidgetExt};
+        let Ok(gw) = w.gtk_window() else { return };
+        gw.connect_window_state_event(|gw, ev| {
+            if ev.new_window_state().contains(gtk::gdk::WindowState::MAXIMIZED) {
+                if trace() {
+                    eprintln!("overlay maximized by the window manager: unmaximizing");
+                }
+                gw.unmaximize();
+            }
+            gtk::glib::Propagation::Proceed
+        });
+    });
+}
+
 /// Makes the overlay override-redirect (on) or an ordinary window again, and shows it. The flag is read when the
 /// window is mapped, so it's taken down and put back up around the change. Only a managed window gets the keyboard
 /// on COSMIC, so typing turns it back into one for the while: `focus` then asks for the keyboard once it's up.

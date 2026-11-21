@@ -7,7 +7,7 @@ import { checkUrl } from './safety.mjs';
 import { COUNTRIES } from './countries.mjs';
 
 export const LIMITS = { beats: 12, marks: 40, points: 200, parts3d: 40, atoms: 120, photoBytes: 800_000, iconBytes: 64_000,
-  nodes: 16, links: 24, columns: 6, rows: 12, bars: 12, labels: 8, pins: 12, shade: 40, routes: 8, steps: 10, tex: 300, vertices: 16, questions: 6, cardsShown: 4 };
+  nodes: 16, links: 24, columns: 6, rows: 12, bars: 12, labels: 8, pins: 12, shade: 40, routes: 8, steps: 10, tex: 300, vertices: 16, questions: 6, cardsShown: 8 };
 export const TONES = ['accent', 'teal', 'amber', 'coral', 'lilac', 'sky', 'lime', 'red', 'white'];
 // Marks on the real screen (they need a place on it), actions in apps, and cards drawn on calm space.
 export const SCREEN = ['point', 'target', 'hover', 'ring', 'frame', 'underline', 'strike', 'check', 'cross', 'connect', 'trace', 'num', 'label', 'write', 'scroll', 'spotlight', 'highlight', 'line', 'curve', 'arrow', 'circle', 'rect'];
@@ -77,39 +77,102 @@ const Mark = z.object({
 });
 // Some models (Gemini Flash-Lite, #81) put a lone mark's fields on its beat or on the call itself instead of in marks,
 // a button's text as label, a card's heading as title: moved where they go before the schema sees them.
-const BEAT_KEYS = new Set(['say', 'marks', 'wait']), CALL_KEYS = new Set(['target', 'beats', 'edit', 'deep']);
+const BEAT_KEYS = new Set(['say', 'marks', 'wait']), CALL_KEYS = new Set(['target', 'beats', 'edit', 'deep', 'keep']);
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const loose = (o, keep) => Object.fromEntries(Object.entries(o).filter(([k]) => !keep.has(k)));
+// The model sees a card's list items only as objects (drawModelSchema), so the shapes it guesses are set right here:
+// {x, y, z} (or {x, y}) for [x, y, z], {min, max} for a range, a row keyed by column, {text} for a plain list item.
+const asVec = (v) => (!isObj(v) ? v : 'x' in v && 'y' in v ? ['x', 'y', 'z'].filter((k) => k in v).map((k) => v[k])
+  : 'min' in v && 'max' in v ? [v.min, v.max] : typeof v.from === 'number' && typeof v.to === 'number' ? [v.from, v.to] : v);
+const asVecs = (v) => (Array.isArray(v) ? v.map(asVec) : v);
+const asText = (v) => (isObj(v) && typeof v.text === 'string' ? v.text : v);
+const each = (v, f) => (Array.isArray(v) ? v.map((x) => (isObj(x) ? f(x) : x)) : v);
+// A 3D place written flat ({x, y} or [x, y]) gets z = 0; a size as {w, h, d} is [w, h, d] (two numbers stay wrong).
+const vec3 = (v, k) => {
+  const a = isObj(v) && 'w' in v && 'h' in v ? [v.w, v.h, ...('d' in v ? [v.d] : [])] : asVec(v);
+  return k !== 'size' && Array.isArray(a) && a.length === 2 && a.every((n) => typeof n === 'number') ? [...a, 0] : a;
+};
+const vecs = (o, keys) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, keys.includes(k) ? vec3(v, k) : v]));
+// Lists and places sent as JSON text ("[{…}]"), as DeepSeek does, are read as what they say.
+const SHAPED = new Set(['at', 'to', 'tie', 'points', 'items', 'branches', 'sources', 'x_range', 'y_range', 'plots', 'dots', 'keys', 'events', 'parts',
+  'nodes', 'links', 'columns', 'rows', 'bars', 'labels', 'shade', 'pins', 'routes', 'steps', 'vertices', 'lines', 'angles', 'circles', 'questions', 'action', 'marks', 'beats', 'edit']);
+const unjson = (v) => { if (typeof v !== 'string' || !/^\s*[[{]/.test(v)) return v; try { return JSON.parse(v); } catch { return v; } };
+const parsed = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, SHAPED.has(k) ? unjson(v) : v]));
+function fixShapes(m) {
+  const out = parsed(m);
+  for (const k of ['x_range', 'y_range']) if (k in out) out[k] = asVec(out[k]);
+  if ('points' in out) out.points = asVecs(out.points);
+  if ('plots' in out) out.plots = each(out.plots, (p) => ({ ...p, points: asVecs(p.points) }));
+  if ('parts' in out) out.parts = each(out.parts, (p) => ({ ...vecs(p, ['at', 'size', 'rot']), ...(isObj(p.motion) ? { motion: vecs(p.motion, ['around', 'to']) } : {}) }));
+  if (Array.isArray(out.items)) out.items = out.items.map(asText);
+  if ('branches' in out) out.branches = each(out.branches, (b) => (Array.isArray(b.items) ? { ...b, items: b.items.map(asText) } : b));
+  if (Array.isArray(out.rows)) {
+    const cols = Array.isArray(out.columns) ? out.columns : [];
+    out.rows = out.rows.map((r) => (!isObj(r) ? r : cols.length && cols.every((c) => c in r) ? cols.map((c) => r[c]) : Object.values(r)));
+  }
+  return out;
+}
 function tidyMark(m) {
   if (!isObj(m)) return m;
+  // An empty field (text: "") is one left out, not a mistake to send back.
+  if (Object.values(m).includes('')) m = Object.fromEntries(Object.entries(m).filter(([, v]) => v !== ''));
+  m = fixShapes(m);
   if (m.kind === 'button' && !m.text && typeof m.label === 'string') return { ...m, text: m.label };
   if (m.kind === 'card' && !m.text && !m.heading && typeof m.title === 'string') return { ...m, heading: m.title };
   return m;
 }
 function tidyBeat(b) {
   if (!isObj(b)) return b;
+  b = parsed(b);
   const extra = loose(b, BEAT_KEYS);
   let marks = b.marks ?? [];
   if (Object.keys(extra).length && Array.isArray(marks)) {
     if (!marks.length && extra.kind) marks = [extra];
     else if (marks.length === 1 && isObj(marks[0]) && (!extra.kind || extra.kind === marks[0].kind)) marks = [{ ...extra, ...marks[0] }];
   }
-  return { ...b, marks: Array.isArray(marks) ? marks.map(tidyMark) : marks };
+  // No line to say (#117): it draws without a caption instead of the whole drawing failing.
+  return { ...b, say: typeof b.say === 'string' ? b.say : '', marks: Array.isArray(marks) ? marks.map(tidyMark) : marks };
+}
+// Reading a card (#143): a deep explanation closes each card as the next opens, so a card stays at least as long as its
+// words take to read, about 200 a minute, between 3 and 30 seconds. Names, places and settings aren't read.
+const NOT_READ = new Set(['kind', 'tone', 'card_size', 'at', 'part', 'id', 'url', 'link', 'photo', 'image', 'icon', 'query', 'smiles', 'points', 'tie', 'action', 'color', 'side']);
+const wordsIn = (v, key = '') => (NOT_READ.has(key) ? 0 : typeof v === 'string' ? v.split(/\s+/).filter(Boolean).length
+  : Array.isArray(v) ? v.reduce((n, x) => n + wordsIn(x), 0) : v && typeof v === 'object' ? Object.entries(v).reduce((n, [k, x]) => n + wordsIn(x, k), 0) : 0);
+export function readSecs(marks) {
+  const words = (marks ?? []).filter((m) => CARDS.includes(m?.kind)).reduce((n, m) => n + wordsIn(m), 0);
+  return words ? Math.min(30, Math.max(3, Math.round(words / 3.3))) : 0;
 }
 export function tidyDraw(a) {
+  if (isObj(a)) a = parsed(a);
+  // A lone mark sent as the whole call, with no beats (DeepSeek).
+  if (isObj(a) && a.beats === undefined && !a.edit && typeof a.kind === 'string') a = { ...a, beats: [{ marks: [] }] };
   if (!isObj(a) || !Array.isArray(a.beats)) return a;
   const extra = loose(a, CALL_KEYS);
-  const beats = Object.keys(extra).length && a.beats.length === 1 && isObj(a.beats[0]) ? [{ ...extra, ...a.beats[0] }] : a.beats;
+  let beats = Object.keys(extra).length && a.beats.length === 1 && isObj(a.beats[0]) ? [{ ...extra, ...a.beats[0] }] : a.beats;
+  // The line on the call instead of its first beat.
+  if (typeof a.say === 'string' && isObj(beats[0]) && typeof beats[0].say !== 'string') beats = [{ ...beats[0], say: a.say }, ...beats.slice(1)];
   return { ...a, beats: beats.map(tidyBeat) };
 }
-const Beat = z.object({ say: z.string().min(1).max(240), marks: z.array(Mark).max(LIMITS.marks), wait: z.enum(['click', 'hover']).optional() });
+const Beat = z.object({ say: z.string().max(240), marks: z.array(Mark).max(LIMITS.marks), wait: z.enum(['click', 'hover']).optional() });
 const Edit = z.object({ do: z.enum(['recolor', 'move', 'erase', 'clear']), part: z.string().max(8).optional(), tone: z.enum(TONES).optional(), dx: num.optional(), dy: num.optional() });
 export const DrawArgs = z.preprocess(tidyDraw, z.object({
   target: z.string().optional(),
   beats: z.array(Beat).max(LIMITS.beats).optional(),
   edit: z.array(Edit).max(20).optional(),
   deep: z.boolean().optional(),
+  keep: z.boolean().optional(),
 }));
+
+/** What the model is shown of draw, from its lean schema: every field and type, but a card's list items (bars, nodes,
+ *  parts …) only as objects with their counts; their fields are in draw's description. */
+export function drawModelSchema(lean) {
+  const marks = lean.properties.beats.items.properties.marks.items.properties;
+  // Places (at, to, tie) keep their fields: shown only as objects, Claude tied cards to guessed pixels.
+  // additionalProperties says the items take any fields: OpenAI's strict mode can't, so draw goes to it non-strict
+  // (a bare object became one with no fields allowed, and OpenAI refused every request, #156).
+  for (const [k, p] of Object.entries(marks)) if (p.type === 'array' && p.items?.type === 'object') marks[k] = { type: 'array', items: { type: 'object', additionalProperties: true }, ...(p.minItems ? { minItems: p.minItems } : {}), ...(p.maxItems ? { maxItems: p.maxItems } : {}) };
+  return lean;
+}
 
 const hasAt = (t) => !!t && (t.text != null || t.id != null || (t.x != null && t.y != null));
 /** Everything wrong with a draw call that the schema can't say, as lines for the model; [] when it's fine. */
@@ -117,6 +180,7 @@ export function checkDraw(args) {
   const out = [], beats = args.beats ?? [], edits = args.edit ?? [];
   if (!beats.length && !edits.length) out.push('Give beats to draw, or edit to change what is drawn.');
   beats.forEach((b, i) => {
+    if (!b.say.trim() && !b.marks.length) out.push(`beat ${i + 1}: needs say or marks.`);
     b.marks.forEach((m, j) => {
       const where = `beat ${i + 1} mark ${j + 1} (${m.kind})`, need = (ok, what) => { if (!ok) out.push(`${where}: needs ${what}.`); };
       if (PATHS.has(m.kind)) need(m.points?.length >= 2 || hasAt(m.at), 'points ([x, y] screenshot pixels, at least 2) or at');
@@ -356,6 +420,50 @@ export function quizNote(m, picks) {
   const pick = (i) => (Number.isInteger(picks?.[i]) && picks[i] >= 0 && picks[i] < qs[i].options.length ? picks[i] : -1);
   const missed = qs.map((q, i) => (pick(i) === q.right ? null : `${cut(q.text)} (they ${pick(i) < 0 ? 'skipped it' : `picked ${cut(q.options[pick(i)])}`}; the answer is ${cut(q.options[q.right])})`)).filter(Boolean);
   return `They answered the quiz${m.title ? ` ${cut(m.title)}` : ''} on screen by clicking: ${qs.length - missed.length} of ${qs.length} right.${missed.length ? ` Missed: ${missed.join('; ')}.` : ''}`;
+}
+/** Drawn lists the user changes on the card (#115): ticks, added items and edits. They reach the model as one note with
+ *  the next message (note), and the part's description keeps the current items. */
+export const LIST_MAX = 30;
+export function createLists() {
+  const all = new Map(); // part → { title, items, done, base: done when last told, log: [added / changed], closed }
+  const cut = (t) => `“${String(t).replace(/\s+/g, ' ').slice(0, 120)}”`;
+  const pending = (l) => l.log.length > 0 || l.done.some((d, i) => d !== !!l.base[i]);
+  const live = (part) => { const l = all.get(part); return l && !l.closed ? l : null; };
+  const drop = (part) => { const l = all.get(part); if (!l) return; if (pending(l)) l.closed = true; else all.delete(part); };
+  return {
+    set(part, m) { const items = (m.items ?? []).map(String); all.set(part, { title: String(m.title || 'list'), items, done: items.map(() => false), base: [], log: [] }); },
+    get: (part) => { const l = live(part); return l ? { title: l.title, items: [...l.items], done: [...l.done] } : null; },
+    /** Closed or cleared: what they changed before that is still told once. */
+    drop,
+    clear(keep = () => false) { for (const id of [...all.keys()]) if (!keep(id)) drop(id); },
+    /** A change from the card: { op: 'tick', i, done }, { op: 'add', text } or { op: 'edit', i, text }. Returns the
+     *  items after it, or null when nothing changed (no such list or item, empty or unchanged words, list full). */
+    change(part, { op, i, done, text } = {}) {
+      const l = live(part);
+      if (!l) return null;
+      const t = String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 120), has = Number.isInteger(i) && i >= 0 && i < l.items.length;
+      if (op === 'tick' && has) l.done[i] = !!done;
+      else if (op === 'add' && t && l.items.length < LIST_MAX) { l.items.push(t); l.done.push(false); l.log.push(`added ${cut(t)}`); }
+      else if (op === 'edit' && has && t && t !== l.items[i]) { l.log.push(`changed ${cut(l.items[i])} to ${cut(t)}`); l.items[i] = t; }
+      else return null;
+      return [...l.items];
+    },
+    /** The part's description with what's on it now: list “Groceries” (milk, done; eggs). */
+    desc(part) { const l = live(part); return l ? `list ${cut(l.title.slice(0, 40))} (${l.items.map((it, k) => `${String(it).slice(0, 40)}${l.done[k] ? ', done' : ''}`).join('; ')})` : null; },
+    /** What they changed on screen since this was last read, in words for the model; null when nothing did. */
+    note() {
+      const out = [];
+      for (const [part, l] of all) {
+        if (!pending(l)) continue;
+        const off = l.items.filter((_, k) => l.done[k] && !l.base[k]).map(cut), back = l.items.filter((_, k) => !l.done[k] && l.base[k]).map(cut);
+        const what = [off.length ? `ticked off ${off.join(', ')}` : '', back.length ? `unticked ${back.join(', ')}` : '', ...l.log].filter(Boolean);
+        if (what.length) out.push(`They changed the list ${cut(l.title)} on screen: ${what.join('; ')}.`);
+        l.base = [...l.done]; l.log = [];
+        if (l.closed) all.delete(part);
+      }
+      return out.length ? out.join(' ') : null;
+    },
+  };
 }
 const SILENT = new Set(['emote', 'sfx', 'copy', 'open', 'handoff']);
 /** The parts on screen: ids never reused in a conversation, screen marks cleared on their own, cards until closed. */

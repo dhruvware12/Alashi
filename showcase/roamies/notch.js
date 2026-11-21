@@ -1,4 +1,5 @@
-// The notch capsule: on a Mac, the agent comes out of the camera notch instead of popping up beside the cursor.
+// The notch capsule: the agent comes out of the top of the screen (a Mac's camera notch, where there is one) instead
+// of popping up beside the cursor.
 // A black capsule pours out of the notch (it starts exactly the notch's size, so it reads as the notch itself
 // growing), spreads sideways with a little spring, and drops open when there's something to read. When the turn is
 // over it folds back the same way and disappears into the notch. Inside: a small live JARVIS globe (jarvis.js, the
@@ -12,8 +13,8 @@
 // Screens without a notch get the same capsule hanging from the top edge, with nothing to hide in at rest.
 // The overlay is click-through, so the host asks Roamie.notchHit(x, y) whether the cursor is over it.
 // API: Roamie.notch.enabled (set by the host from the setting) .active .listen() .level(v) .heard(text) .think(text)
-//      .tool(label) .text(chunk) .done({ speech }) .fail(message) .say(text) .prompt(question, choices, onChoose)
-//      .close() .rect()
+//      .tool(label) .text(chunk) .done({ speech, rate }) .fail(message) .say(text) .prompt(question, choices, onChoose)
+//      .hello(words) .close() .rect()
 (() => {
   const R = window.Roamie;
   if (typeof document === 'undefined' || !R) return;
@@ -76,7 +77,7 @@
 .nc.drop.full .nc-body { --cw: var(--bw, 440px); top: calc(var(--row) + 8px); height: var(--bh, auto); opacity: 1; pointer-events: auto;
   transition: opacity .1s ease, --cw .44s cubic-bezier(.22, 1, .36, 1), height .4s cubic-bezier(.22, 1, .36, 1), top .52s cubic-bezier(.3, 1.25, .5, 1); }
 @property --cw { syntax: '<length>'; inherits: false; initial-value: 0px; }
-.nc.drop .nc-text { width: calc(var(--bw, 440px) - 40px); }
+.nc.drop .nc-text { width: calc(var(--bw, 440px) - 40px + var(--sb)); }
 /* The pill (its black, glow and contents) stays above the card while it slides out from under it. */
 .nc.drop .nc-skin, .nc.drop .nc-row { z-index: 1; }
 .nc.drop .nc-skin { background: #000; }
@@ -169,10 +170,20 @@
 .nc.full .nc-body { opacity: 1; transition: opacity 0s; }
 /* Notch style: the reply is inside the shape, so it's cut to the shape while it grows and shrinks. */
 .nc:not(.drop) .nc-body { clip-path: inset(0 0 max(0px, calc(100% - var(--h) + var(--row))) 0); }
-.nc:not(.drop) .nc-text { width: calc(var(--bw, 440px) - 40px); }
-.nc-text { margin: 0; max-height: ${MAX_BODY}px; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px); }
-.nc-text.short { -webkit-mask-image: none; }
+.nc:not(.drop) .nc-text { width: calc(var(--bw, 440px) - 40px + var(--sb)); }
+/* The scrollbar has its own lane in the card's right margin (--sb wide), so it never sits over the words, whether the
+   system draws it over the content (macOS's default) or beside it; the words keep the same width either way. */
+.nc-text { --sb: 12px; margin: 0 calc(-1 * var(--sb)) 0 0; padding-right: var(--sb); box-sizing: border-box; scrollbar-gutter: stable;
+  max-height: ${MAX_BODY}px; overflow: hidden auto; overscroll-behavior: contain; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink);
+  scrollbar-width: thin; scrollbar-color: rgba(120,255,226,.35) transparent;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%); }
+/* Long replies scroll (wheel or trackpad); the edges fade only where there's more to see. */
+.nc-text::-webkit-scrollbar { width: 6px; }
+.nc-text::-webkit-scrollbar-thumb { background: rgba(120,255,226,.35); border-radius: 3px; }
+.nc-text::-webkit-scrollbar-track { background: transparent; }
+.nc-text.top { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%); }
+.nc-text.end { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px); }
+.nc-text.short, .nc-text.top.end { -webkit-mask-image: none; }
 .nc-heard { color: var(--ink-3); }
 /* Each line is its own paragraph with its own direction (Arabic and Hebrew run right to left, in the Arabic font). */
 .nc-line:dir(rtl) { font-family: "Roamies Arabic RTL", "Martian Mono", "Roamies Arabic", ui-monospace, Menlo, monospace; }
@@ -183,6 +194,12 @@
 .nc-choices button.sel { outline: 2px solid var(--ink); outline-offset: 2px; }
 .nc-choices button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .nc-keys { align-self: center; margin-left: auto; color: var(--ink-3); }
+/* Good / Wrong under a reply that did something: quiet text, not Allow's accent. */
+.nc-rate { display: flex; gap: 16px; margin-top: 10px; line-height: 1.3; color: var(--ink-2); }
+.nc-rate button { font: inherit; letter-spacing: inherit; line-height: 1.3; padding: 2px 0; border: 0; background: none; color: var(--ink-2); cursor: pointer;
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: color .15s ease, text-decoration-color .15s ease; }
+.nc-rate button:hover { color: var(--ink); text-decoration-color: currentColor; }
+.nc-rate button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .nc, .nc.closing { transition: opacity .18s ease; }
   .nc-goo { display: none !important; }
@@ -205,7 +222,7 @@
   el.innerHTML = '<div class="nc-skin" aria-hidden="true"><i class="nc-glow l"></i><i class="nc-glow r"></i></div>'
     + '<div class="nc-row"><span class="nc-mark">JARVIS</span><canvas class="nc-globe" aria-hidden="true"></canvas>'
     + '<div class="nc-status"><canvas class="nc-wave" aria-hidden="true"></canvas><span class="nc-label"></span></div></div>'
-    + '<div class="nc-body"><p class="nc-text"></p><div class="nc-choices" hidden></div></div>';
+    + '<div class="nc-body"><p class="nc-text"></p><div class="nc-choices" hidden></div><div class="nc-rate" hidden></div></div>';
   // The goo: blurred, then its alpha thresholded, so shapes that touch melt into one (metaballs). The notch, a tongue,
   // the pill and two droplets live in it while it pours out or melts back. It's drawn twice from the same shapes:
   // - fill: the capsule's black, faded by a vertical mask so the bridge is black where it leaves the notch, clear in
@@ -247,7 +264,7 @@
   document.fonts?.ready?.then(() => refit?.());
   document.fonts?.addEventListener?.('loadingdone', () => refit?.());
   const $ = (s) => el.querySelector(s);
-  const globe = $('.nc-globe'), label = $('.nc-label'), textEl = $('.nc-text'), choicesEl = $('.nc-choices'), wave = $('.nc-wave');
+  const globe = $('.nc-globe'), label = $('.nc-label'), textEl = $('.nc-text'), choicesEl = $('.nc-choices'), rateEl = $('.nc-rate'), wave = $('.nc-wave');
 
   // ---------- geometry ----------
   // The notch as the shell reported it (main.rs safe_js): left edge, width and height in this screen's CSS px.
@@ -332,7 +349,7 @@
   };
 
   // ---------- state ----------
-  const st = { mode: null, open: false, text: '', heard: '', mic: 0, lingerAt: 0, linger: 0, speech: null, prompt: null, hover: false, closeT: 0, folded: false, px: null, py: null, g: 0.4, look: 'jarvis', liq: null };
+  const st = { mode: null, open: false, text: '', heard: '', mic: 0, lingerAt: 0, linger: 0, speech: null, prompt: null, hover: false, closeT: 0, folded: false, px: null, py: null, g: 0.4, look: 'jarvis', liq: null, follow: true };
   let raf = 0, last = 0;
   const jst = { t: 0, dt: 0.016, mode: null, act: null, actA: 0, open: 1, look: [0, 0], sq: 0, wide: 0, dizzy: 0, happy: 0, sleepy: 0, voice: null, heard: 0 };
 
@@ -420,23 +437,45 @@
       if (st.open) return;
       el.classList.remove('on', 'closing');
       st.liq = null; goo.style.display = 'none'; el.classList.remove('liquid'); st.folded = false; st.minW = 0; st.statusW = null;
-      st.text = ''; st.heard = ''; textEl.textContent = ''; choicesEl.hidden = true; choicesEl.textContent = ''; setMode(null, '');
+      st.text = ''; st.heard = ''; st.follow = true; textEl.textContent = ''; choicesEl.hidden = true; choicesEl.textContent = ''; unrate(); setMode(null, '');
     }, reduced() ? 200 : 760);
   };
+  // Which ends of the text have more past them (they fade), and whether the newest line is in view.
+  const edges = () => {
+    const below = textEl.scrollHeight - textEl.scrollTop - textEl.clientHeight;
+    textEl.classList.toggle('top', textEl.scrollTop <= 1);
+    textEl.classList.toggle('end', below <= 1);
+    return below;
+  };
+  // Only their own scrolling (wheel, trackpad, touch, keys, the scrollbar) decides it: replacing the text as words
+  // stream in also moves it, and that mustn't count as scrolling up.
+  let userAt = -Infinity;
+  for (const ev of ['wheel', 'touchmove', 'pointerdown', 'keydown']) textEl.addEventListener(ev, () => { userAt = performance.now(); }, { passive: true });
+  textEl.addEventListener('scroll', () => {
+    const below = edges();
+    if (performance.now() - userAt > 800) return;
+    st.follow = below <= 4;
+    st.lingerAt &&= performance.now(); // reading it: it doesn't fold away mid-scroll
+  }, { passive: true });
   // Grows (or shrinks) to fit what's in it, once the text has laid out.
   // One re-fit per frame at most, however fast the words stream in.
   let fitQ = 0;
-  const refit = () => { if (st.open && !fitQ) fitQ = requestAnimationFrame(() => { fitQ = 0; if (st.open) { textEl.classList.toggle('short', textEl.scrollHeight <= MAX_BODY); textEl.scrollTop = textEl.scrollHeight;
+  const refit = () => { if (st.open && !fitQ) fitQ = requestAnimationFrame(() => { fitQ = 0; if (st.open) { textEl.classList.toggle('short', textEl.scrollHeight <= MAX_BODY);
+    // New words keep the newest line in view, unless they've scrolled up to read: then it stays where they are.
+    if (st.follow) textEl.scrollTop = textEl.scrollHeight;
+    edges();
     // The card eases to its new height as lines arrive, instead of jumping a line at a time.
-    const body = $('.nc-body'); body.style.setProperty('--bh', `${Math.ceil(textEl.offsetHeight + (choicesEl.hidden ? 0 : choicesEl.offsetHeight + 12) + 30)}px`);
+    const body = $('.nc-body'); body.style.setProperty('--bh', `${Math.ceil(textEl.offsetHeight + (choicesEl.hidden ? 0 : choicesEl.offsetHeight + 12) + (rateEl.hidden ? 0 : rateEl.offsetHeight + 10) + 30)}px`);
     apply(want()); } }); };
   const render = () => {
     const words = st.text || st.heard;
     textEl.classList.toggle('nc-heard', !st.text && !!st.heard);
     // One block per line, so a line in Arabic runs right to left and lines in English stay left to right.
+    const keep = textEl.scrollTop;
     textEl.replaceChildren(...words.replace(/\*\*|__|`|^#+\s*/gm, '').split('\n').map((ln) => {
       const d = document.createElement('div'); d.className = 'nc-line'; d.dir = 'auto'; d.textContent = ln || '\u200b'; return d;
     }));
+    if (!st.follow) textEl.scrollTop = keep; // scrolled up to read: new words don't move it
     refit();
   };
   // It takes clicks only while it has buttons or something to read (hovering keeps it open).
@@ -589,8 +628,10 @@
   // and splits, two droplets fall after it and merge in, the pill wobbles as it settles. pour('in') runs it backwards:
   // the notch reaches down, the pill squashes, stretches up into it and melts away.
   const OUT_MS = 820, IN_MS = 620;
+  // Not on Linux: WebKitGTK draws the goo's filters as a solid black shape that breaks into stripes (#134).
+  const LINUX = !!window.ROAMIE_LINUX;
   const pour = (dir) => {
-    if (!drop() || reduced()) { st.liq = null; return; }
+    if (!drop() || reduced() || LINUX) { st.liq = null; return; }
     st.liq = { dir, t0: performance.now(), dropped: false };
     el.classList.add('liquid');
     goo.style.display = 'block';
@@ -702,6 +743,8 @@
     hot(take);
     return take;
   };
+  // Linux takes clicks by region (host.js): the capsule's box, while it has something to click.
+  R.notchTakes = () => st.open && takes();
   R.notchRect = () => {
     if (!st.open) return null;
     const a = el.getBoundingClientRect(), b = drop() && shape === 'full' ? $('.nc-body').getBoundingClientRect() : a;
@@ -725,11 +768,33 @@
   // ---------- API ----------
   // A new turn starts clean: anything left from the last one (a reply still lingering, or one folding away) goes.
   const fresh = () => {
-    st.text = ''; st.heard = ''; st.prompt = null; st.folded = false; st.lingerAt = 0; st.speech = null; st.minW = 0; st.statusW = null;
-    textEl.textContent = ''; choicesEl.hidden = true; choicesEl.textContent = '';
+    st.text = ''; st.heard = ''; st.prompt = null; st.folded = false; st.lingerAt = 0; st.speech = null; st.minW = 0; st.statusW = null; st.follow = true;
+    textEl.textContent = ''; choicesEl.hidden = true; choicesEl.textContent = ''; unrate();
     if (st.open) refit();
   };
   const closing = () => !st.open || el.classList.contains('closing') || !!st.retractT;
+  // Rating the reply: onRate(good) once, from Good or Wrong. Gone with the reply, a new turn, or an Allow question.
+  function unrate() { st.rate = null; rateEl.hidden = true; rateEl.textContent = ''; }
+  const rate = (onRate) => {
+    st.rate = onRate;
+    rateEl.textContent = '';
+    for (const [word, good] of [['Good', true], ['Wrong', false]]) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = word;
+      b.setAttribute('aria-label', good ? 'That was good' : 'That was wrong');
+      b.addEventListener('click', (e) => {
+        e.stopPropagation?.();
+        const f = st.rate; unrate();
+        if (good) { const t = document.createElement('span'); t.textContent = 'Thanks!'; rateEl.appendChild(t); rateEl.hidden = false; announce(t.textContent); }
+        st.lingerAt &&= performance.now();
+        refit();
+        f?.(good);
+      });
+      rateEl.appendChild(b);
+    }
+    rateEl.hidden = false;
+    refit();
+  };
   const linger = () => {
     // Long enough to read it: about a third of a second a word, between 3 and 14 seconds.
     const words = (st.text.match(/\S+/g) ?? []).length;
@@ -748,9 +813,11 @@
       if (d === drop()) return;
       // Open: fold away in the old style, come back out in the new one with the same contents.
       if (st.open) {
-        const keep = { mode: st.mode, words: label.textContent };
+        const keep = { mode: st.mode, words: label.textContent, linger: st.lingerAt ? st.linger : 0 };
         close();
-        setTimeout(() => { el.classList.toggle('drop', d); if (!st.open && keep.mode) { setMode(keep.mode, keep.words); show(); } }, 800);
+        // Regression: a hello at launch came back without its timer (the notch style arrives a moment after it) and
+        // stayed up for good. What was folding away still does.
+        setTimeout(() => { el.classList.toggle('drop', d); if (!st.open && keep.mode) { setMode(keep.mode, keep.words); show(); if (keep.linger) { st.linger = keep.linger; st.lingerAt = performance.now(); } } }, 800);
       } else el.classList.toggle('drop', d);
     },
     get active() { return st.open; },
@@ -762,20 +829,23 @@
     // Where replies show: 'capsule' (default) or 'cursor' (the sidekick's bubble; the capsule shows the state only).
     replies: 'capsule',
     // Replies at the cursor: the capsule shows it's answering, the words are elsewhere.
-    replying() { st.tokAt = performance.now(); st.lingerAt = 0; if (st.mode !== 'talk') setMode('reply', 'Answering'); show(); },
+    // While an Allow question waits, nothing else takes the card: what comes meanwhile shows once it's answered.
+    replying() { if (st.prompt) return; st.tokAt = performance.now(); st.lingerAt = 0; if (st.mode !== 'talk') setMode('reply', 'Answering'); show(); },
     // The answer is being drawn on screen: the capsule folds its text away (one place for the answer) and says so.
     // A click on the pill still opens the text.
-    yieldTo(words) { st.folded = true; st.lingerAt = 0; setMode('tool', words || 'Showing you'); show(); refit(); },
+    yieldTo(words) { if (st.prompt) return; st.folded = true; st.lingerAt = 0; setMode('tool', words || 'Showing you'); show(); refit(); },
     // A new request: clears the last reply, then thinks.
     begin() { fresh(); this.think(); },
     think(text) {
+      if (st.prompt) return;
       if (closing() || st.lingerAt) fresh();
       st.lingerAt = 0;
       if (st.mode !== 'tool' || text == null) setMode('think', 'Thinking');
       show();
     },
-    tool(words) { if (closing() || st.lingerAt) fresh(); st.lingerAt = 0; setMode('tool', words || 'Working'); show(); },
+    tool(words) { if (st.prompt) return; if (closing() || st.lingerAt) fresh(); st.lingerAt = 0; setMode('tool', words || 'Working'); show(); },
     text(chunk) {
+      if (st.prompt) { st.reply = (st.reply ?? '') + chunk; return; }
       if (closing()) fresh();
       st.lingerAt = 0;
       if (!st.text) chunk = String(chunk).replace(/^\s+/, '');
@@ -783,30 +853,43 @@
       if (!st.folded && st.mode !== 'talk') setMode('reply', '');
       render(); show();
     },
-    done({ speech } = {}) {
+    done({ speech, rate: onRate } = {}) {
       // A turn cut short by talking again ends while the mic is already on: the capsule stays listening.
       if (st.mode === 'listen' && st.open) return;
       st.speech = speech ?? null;
+      // Regression: lingering under a prompt let the next status wipe the Allow buttons. Answering it lingers instead.
+      if (st.prompt) return;
       if (!st.text && !st.prompt) { close(); return; }
       if (!st.prompt && !st.folded && st.mode !== 'talk' && st.mode !== 'error') setMode('done', '');
       if (st.text && !st.prompt && st.mode !== 'error') announce(st.text);
       linger();
+      if (typeof onRate === 'function' && st.mode !== 'error') rate(onRate);
     },
     fail(message) {
       if (st.mode === 'listen' && st.open) return;
       if (closing()) fresh();
+      unrate();
       st.text = String(message ?? 'Something went wrong.'); st.speech = null;
       setMode('error', 'Couldn’t finish'); render(); show(); linger(); announce(st.text);
     },
+    // At launch or when summoned, in place of the Roamie waving by the cursor: the compact capsule says hi and folds
+    // back in by itself. Never over a turn, a reply or a question already in it.
+    hello(words = 'Hi there') {
+      if (st.prompt || R.notch._busy?.() || (st.open && !closing() && (st.text || st.mode !== 'done'))) return false;
+      fresh(); setMode('done', String(words)); show();
+      st.linger = 2600; st.lingerAt = performance.now();
+      return true;
+    },
     // A line on its own (a reminder, a greeting): out, said, back in.
-    say(text) { if (R.notch._busy?.() && st.text) return; st.text = ''; this.text(text); this.done(); },
+    say(text) { if (st.prompt || (R.notch._busy?.() && st.text)) return; st.text = ''; unrate(); this.text(text); this.done(); },
     // The reply moved to the research card: the capsule stops showing it.
-    reset() { st.text = ''; st.heard = ''; render(); },
+    reset() { if (st.prompt) { st.reply = ''; return; } st.text = ''; st.heard = ''; render(); },
     // Allow / Don't allow. onChoose(i): the first answers yes. The host's hidden field still takes Y, N, Tab, Enter.
     prompt(question, choices, onChoose) {
       if (closing()) fresh();
       const me = { onChoose };
       st.prompt = me; st.lingerAt = 0; st.folded = false;
+      unrate();
       st.reply = st.text; // the reply so far comes back once it's answered
       st.text = String(question ?? '');
       setMode('ask', 'Needs your OK');

@@ -21,6 +21,13 @@ thread_local! {
     static ESC_UP: RefCell<std::collections::HashSet<String>> = RefCell::new(std::collections::HashSet::new());
 }
 
+/// How the voice helper last ended on its own, and how many times it has, for diagnostics.
+static VOICE_EXIT: std::sync::Mutex<Option<(Value, u32)>> = std::sync::Mutex::new(None);
+
+pub(crate) fn last_voice_exit() -> Value {
+    VOICE_EXIT.lock().ok().and_then(|e| e.clone()).map(|(how, times)| json!({ "last": how, "times": times })).unwrap_or(Value::Null)
+}
+
 pub(crate) fn voice_binary() -> Option<PathBuf> {
     helper_binary("roamies-voice")
 }
@@ -39,6 +46,11 @@ pub(crate) fn start_voice(app: &AppHandle) {
     cmd.arg("--chord").arg(chord);
     if let Some(dir) = app.state::<VoiceModel>().0.lock().unwrap().clone() {
         cmd.arg("--model").arg(dir);
+    }
+    // Microsoft's ONNX Runtime, bundled as a resource (fetch-onnxruntime.sh); the helper loads it at run time.
+    #[cfg(any(windows, target_os = "linux"))]
+    if let Ok(dir) = app.path().resource_dir() {
+        cmd.arg("--ort").arg(dir.join(if cfg!(windows) { "onnxruntime.dll" } else { "libonnxruntime.so" }));
     }
     // Debug builds: ROAMIES_TEST_AUDIO=<wav> stands in for the microphone, to test talking with no mic (CI, Docker).
     #[cfg(debug_assertions)]
@@ -74,7 +86,14 @@ pub(crate) fn start_voice(app: &AppHandle) {
             let ours = slot.as_ref().map(Child::id) == Some(pid);
             if ours {
                 if let Some(mut c) = slot.take() {
-                    let _ = c.wait();
+                    if let Ok(status) = c.wait() {
+                        let how = exit_info(status);
+                        eprintln!("voice helper exited: {how}");
+                        if let Ok(mut e) = VOICE_EXIT.lock() {
+                            let times = e.as_ref().map_or(0, |(_, n)| *n) + 1;
+                            *e = Some((how, times));
+                        }
+                    }
                 }
             }
             ours

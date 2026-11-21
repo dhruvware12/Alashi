@@ -29,6 +29,15 @@ export function describe(name, args = {}) {
     case 'start_focus': return ['Starting a focus block', 'Started a focus block'];
     case 'stop_focus': return ['Ending the focus block', 'Ended the focus block'];
     case 'snooze_reminder': return ['Snoozing a reminder', 'Snoozed a reminder'];
+    case 'use_skill': return [`Following ${short(args.name)}`, `Followed ${short(args.name)}`];
+    case 'save_skill': return [`Learning ${short(args.name)}`, `Learned: ${short(args.name)}`];
+    case 'forget_skill': return ['Forgetting a skill', 'Forgot a skill'];
+    case 'add_connection': return args.name ? [`Connecting ${short(args.name)}`, `Connected ${short(args.name)}`] : ['Checking connections', 'Checked connections'];
+    case 'remove_connection': return [`Removing ${short(args.name)}`, `Removed ${short(args.name)}`];
+    case 'connection_tools': return [`Checking ${short(args.server)}`, `Checked ${short(args.server)}`];
+    case 'use_connection': return [`Using ${short(args.server)}`, `Used ${short(args.server)}`];
+    case 'schedule_job': return [`Scheduling ${short(args.title)}`, `Scheduled ${short(args.title)}`];
+    case 'update_job': return args.action === 'run_now' ? ['Starting a job', 'Started a job'] : ['Updating a job', 'Updated a job'];
     case 'open': {
       const t = String(args.target ?? '');
       const what = /^https?:\/\//i.test(t) ? host(t) : short(base(t));
@@ -48,6 +57,10 @@ export function createActivity({ max = 12, now = () => Date.now() } = {}) {
     asked(text) { add('ask', short(text, 80)); },
     // A drawing handed part of the work on: said in the list like anything else it did.
     handoff(task) { add('did', `Handed off: ${short(task, 60)}`); },
+    // A skill the learning pass kept, so nothing is learned silently.
+    learned(name, updated = false) { add('did', `${updated ? 'Improved' : 'Learned'}: ${short(name, 60)}`); },
+    // A fact kept from their feedback ("that's wrong, use Firefox"), shown so they can undo it on the Memory page.
+    noted(fact) { add('did', `Noted: ${short(fact, 60)}`); },
     // Every tool is tracked, even ones with no line, so stopped() can say which never finished.
     start(id, name, args) { const d = describe(name, args); running.set(id, d); return d?.[0] ?? null; },
     end(id, isError) { const d = running.get(id); running.delete(id); if (d) add(isError ? 'bad' : 'did', isError ? `Couldn't finish: ${d[1].charAt(0).toLowerCase()}${d[1].slice(1)}` : d[1]); },

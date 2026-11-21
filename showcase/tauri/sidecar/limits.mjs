@@ -9,6 +9,8 @@ const MIN = 60_000, HOUR = 60 * MIN;
 export const COOLDOWN = { limit: 5 * MIN, credit: 60 * MIN, busy: 2 * MIN, auth: 10 * MIN, missing: 30 * MIN, down: 2 * MIN };
 
 const CREDIT = /insufficient[_ ]quota|credit balance|billing|payment required|\b402\b|out of credits?/i;
+// Gemini's rate limits mention billing too (#144): those are limits, not an empty account.
+const GEMINI_LIMIT = /^(?![^]*insufficient_quota)[^]*check your plan and billing details/i; // OpenAI's empty account says it too, with insufficient_quota
 const LIMIT = /usage.?limit|rate.?limit|\b429\b|too many requests|limit (?:has been |was )?(?:reached|exceeded|hit)|hit your (?:usage )?limit|you(?:'ve| have) (?:reached|hit)|exceeded (?:your|the) (?:current )?(?:quota|limit)|quota|resource.?exhausted|tokens? per (?:minute|day)|requests? per (?:minute|day)/i;
 const BUSY = /overloaded|\b529\b|\b503\b|service unavailable|at capacity|capacity/i;
 // Not a limit, but the platform can't be used right now.
@@ -42,6 +44,8 @@ export function resetAt(err, text, now = Date.now()) {
   }
   let m = /try again in (\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?)\b/i.exec(text);
   if (m) return now + Number(m[1]) * UNIT(m[2]);
+  m = /(?:please )?retry in (\d+(?:\.\d+)?)\s*(ms|s|m|h)\b/i.exec(text); // Gemini: "Please retry in 37.5s."
+  if (m) return now + Number(m[1]) * UNIT(m[2]);
   m = /retry[- ]after[:=\s]+(\d+)/i.exec(text);
   if (m) return now + Number(m[1]) * 1000;
   m = /resets?\s+in\s+(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|m|mins?|minutes?)\b/i.exec(text);
@@ -68,7 +72,7 @@ export function resetAt(err, text, now = Date.now()) {
 export function limitFrom(err, now = Date.now()) {
   const text = textOf(err);
   if (!text) return null;
-  const kind = CREDIT.test(text) ? 'credit' : LIMIT.test(text) ? 'limit' : BUSY.test(text) ? 'busy' : AUTH.test(text) ? 'auth' : MISSING.test(text) ? 'missing' : DOWN.test(text) ? 'down' : null;
+  const kind = GEMINI_LIMIT.test(text) ? 'limit' : CREDIT.test(text) ? 'credit' : LIMIT.test(text) ? 'limit' : BUSY.test(text) ? 'busy' : AUTH.test(text) ? 'auth' : MISSING.test(text) ? 'missing' : DOWN.test(text) ? 'down' : null;
   if (!kind) return null;
   const at = resetAt(err, text, now) ?? now + COOLDOWN[kind];
   return { kind, until: Math.min(now + 24 * HOUR, Math.max(now + 30_000, at)) };

@@ -1,6 +1,97 @@
 {
   "updates": [
     {
+      "version": "0.1.49",
+      "date": "2026-11-21",
+      "items": [
+        { "kind": "fixed", "title": "ChatGPT works again", "text": "Every ChatGPT and OpenAI message failed with E20. Fixed. Thanks matts-2539!" },
+        { "kind": "new", "title": "Text-only subagents", "text": "Subagents can use models that can't see images, like NVIDIA's coding models." },
+        { "kind": "fixed", "title": "Smooth capsule on Linux", "text": "On Linux, the capsule flashed black stripes as it opened. Fixed. Thanks sakartvelo11!" },
+        { "kind": "fixed", "title": "I remember with NVIDIA NIM", "text": "With NVIDIA NIM, I forgot what we'd just said. Not anymore. Thanks FunisWokodneer!" }
+      ]
+    },
+    {
+      "version": "0.1.48",
+      "date": "2026-11-21",
+      "items": [
+        { "kind": "fixed", "title": "Fullscreen on GNOME", "text": "On Ubuntu Xorg, the top bar and dock stayed over fullscreen apps. Thanks sakartvelo11!" }
+      ]
+    },
+    {
+      "version": "0.1.47",
+      "date": "2026-11-21",
+      "items": [
+        { "kind": "fixed", "title": "Voice on older PCs", "text": "Voice crashed at start on PCs without AVX2. It works now. Thanks Harry and waningeplayz!" },
+        { "kind": "fixed", "title": "New look, new name", "text": "After switching looks mid chat, I could still think I was the old one. Not anymore." },
+        { "kind": "fixed", "title": "ChatGPT running out fast", "text": "ChatGPT gives me a small share of your plan at first. I now show you where to raise it." },
+        { "kind": "fixed", "title": "Time to read", "text": "Cards and replies vanished too fast. They stay long enough to read now. Thanks!" },
+        { "kind": "improved", "title": "Voice and cards in step", "text": "In a long explanation, my voice now stays on the card you're looking at." },
+        { "kind": "fixed", "title": "Gemini limits, not credit", "text": "Gemini's free limit showed as out of credit. I now say it's a limit. Thanks Codinfo!" },
+        { "kind": "fixed", "title": "I know when a drawing is gone", "text": "When a drawing left the screen, I could still talk as if it was there. Not anymore." },
+        { "kind": "improved", "title": "Fewer broken drawings", "text": "Some models got a drawing slightly wrong. I fix their small slip ups myself now." },
+        { "kind": "improved", "title": "Lighter on your plan", "text": "I send the model about a quarter less with every message, so each reply uses less." },
+        { "kind": "improved", "title": "Claude explains in depth", "text": "With Claude, \"explain in depth\" now shows one big card at a time, like other models." }
+      ]
+    },
+    {
+      "version": "0.1.46",
+      "date": "2026-11-20",
+      "items": [
+        { "kind": "new", "title": "Tell me Good or Wrong", "text": "Rate a reply, or say \"that's wrong, use Firefox\". What I learn shows in Memory." },
+        { "kind": "new", "title": "Menus that show on hover", "text": "I can rest the pointer on a card so its hidden ⋯ menu shows, without opening the card." },
+        { "kind": "new", "title": "A volume slider", "text": "Speaking has a Volume slider now, so you can turn my voice and sounds down." },
+        { "kind": "new", "title": "Close the panel with X", "text": "The panel has an X button now, for desktops where clicking away didn't close it." },
+        { "kind": "improved", "title": "Up to 8 cards at once", "text": "I keep up to 8 cards on screen now, not 4, before the oldest makes way." },
+        { "kind": "fixed", "title": "Allow buttons stay up", "text": "A new status could wipe the capsule's Allow buttons. They stay now until you answer." },
+        { "kind": "fixed", "title": "No more made up \"Yeah\"", "text": "On Windows and Linux, a click as my mic opened could become \"Yeah\". Not anymore." }
+      ]
+    },
+    {
+      "version": "0.1.45",
+      "date": "2026-11-20",
+      "items": [
+        { "kind": "fixed", "title": "One Allow question at a time", "text": "When I needed a few OKs at once, they cancelled each other. Now they come one by one." },
+        { "kind": "fixed", "title": "Mic comes back on a Mac", "text": "If your iPhone mic dropped out, I stopped hearing you until a restart. I switch now." },
+        { "kind": "fixed", "title": "Keys save on new PCs", "text": "On a new Windows PC, saving a key failed with E30. Fixed. Thanks EpicMagicWiz!" },
+        { "kind": "fixed", "title": "Voice on a fresh Windows", "text": "Some PCs lacked files my voice needs, so it never started. I bring them along now." },
+        { "kind": "fixed", "title": "Model lists fit again", "text": "Long OpenRouter model names squashed the Hybrid page. It fits again." },
+        { "kind": "fixed", "title": "Drawings stop failing", "text": "Some drawings stopped with E20 when a step had no line to say. They draw now." }
+      ]
+    },
+    {
+      "version": "0.1.44",
+      "date": "2026-11-19",
+      "items": [
+        { "kind": "fixed", "title": "Maths said right", "text": "When I speak, 3² is \"3 squared\" and ÷ is \"divided by\", and √ is \"the square root of\"." }
+      ]
+    },
+    {
+      "version": "0.1.43",
+      "date": "2026-11-19",
+      "items": [
+        { "kind": "new", "title": "Wake word on Windows and Linux", "text": "Say \"Hey Roamies\" to talk, no keys needed. Turn it on in Listening, Hands-free." },
+        { "kind": "new", "title": "Lists you can tick", "text": "Lists I draw are checklists now. Tick, add and edit items, and I see what changed." },
+        { "kind": "new", "title": "The capsule everywhere", "text": "Pick Capsule in Where I appear and I open from the top of the screen, on any computer." },
+        { "kind": "improved", "title": "Cards stay when asked", "text": "Ask me to keep a card up and my next drawing leaves it there." },
+        { "kind": "fixed", "title": "Clear local model errors", "text": "When a model on your computer doesn't load, I say so instead of blaming the internet." },
+        { "kind": "fixed", "title": "Quiet when hidden", "text": "Hiding me while I'm talking now stops my voice too." },
+        { "kind": "improved", "title": "One Abilities page", "text": "Skills, connections and routines now share one page, with a tab each." },
+        { "kind": "improved", "title": "Full descriptions", "text": "Long descriptions wrap onto more lines instead of getting cut off." },
+        { "kind": "fixed", "title": "Smoother removing", "text": "Removing something no longer flickers. It fades out and the list closes up." },
+        { "kind": "fixed", "title": "Buttons work first time", "text": "Buttons that pop up under your mouse now take the first click." }
+      ]
+    },
+    {
+      "version": "0.1.43",
+      "date": "2026-11-18",
+      "items": [
+        { "kind": "new", "title": "Scheduled jobs", "text": "Ask me to do work at set times, like a news summary every weekday at 8." },
+        { "kind": "new", "title": "Skills", "text": "Give me a skill's GitHub or skills.sh link to install it, or teach me one yourself." },
+        { "kind": "new", "title": "Connections", "text": "Ask me to connect Linear, Notion and more. I find the server and ask first." },
+        { "kind": "improved", "title": "One Roamies folder", "text": "Your settings, memory and chats now sit in the Roamies folder in your home folder." }
+      ]
+    },
+    {
       "version": "0.1.42",
       "date": "2026-11-18",
       "items": [

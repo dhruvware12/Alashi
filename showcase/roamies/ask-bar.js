@@ -2,9 +2,9 @@
 // or `roamies --ask`. It rides with the cursor like the listening pill does (voice/wave.swift), so it's always where
 // you're looking and never in the way, and it's a real textarea: caret, selection, paste and IME just work.
 // The research card's look (agent-panel.js): the stepped pixel frame, dark glass, Martian Mono.
-// Click away with nothing typed and it closes; with something typed it waits where it is until you click it again.
+// Click away and it closes; anything typed comes back, selected, the next time it opens (Esc or sending drops it).
 // The overlay is click-through, so the host asks Roamie.askBarHit(x, y) whether the cursor is over it.
-// API: Roamie.askBar.open({ placeholder, label, cursor, onKey, onPress, onLeft }) .ptr(x, y) .focus() .close() .value .isOpen
+// API: Roamie.askBar.open({ placeholder, value, label, cursor, onKey, onPress, onLeft }) .ptr(x, y) .focus() .close() .value .isOpen
 (() => {
   const R = window.Roamie;
   // Clear of the arrow: right of it and just below its tip, or left of it and above near the screen's edges.
@@ -40,17 +40,12 @@
   scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; appearance: none; -webkit-appearance: none;
   background-color: transparent; color: var(--ink); caret-color: var(--accent);
   font: 500 13.5px/18px "Martian Mono", "Roamies Arabic", ui-monospace, Menlo, monospace; cursor: text; }
-/* Focus shows on the frame (lit while it has the keys, dull while it waits) and as the caret. The see-through
-   outline is the ring forced-colours modes draw instead. */
+/* Focus shows as the caret. The see-through outline is the ring forced-colours modes draw instead. */
 .ab-in .ab-text:focus-visible { outline: 2px solid transparent; outline-offset: 0; }
 .ab-in .ab-text::placeholder { color: var(--ink-3); opacity: 1; }
 /* 12.5px, as in the capsule: at 13.5px the dots under a final ي fall outside the 18px line and are cut off. */
 .ab-in .ab-text:dir(rtl) { font-size: 12.5px; font-family: "Roamies Arabic RTL", "Martian Mono", "Roamies Arabic", ui-monospace, Menlo, monospace; }
 .ab-in .ab-text::selection { background: #1f5f58; color: #e8fffa; }
-/* Waiting with something typed while you're in another app. */
-.ab.away { background: var(--line-hi); color: #e8fffa; }
-.ab.away .ab-in .ab-text { color: var(--ink-2); }
-.ab.away .ab-mark { background: var(--line-hi); box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .ab, .ab.on { transition: none; } }
 @media (forced-colors: active) { .ab { clip-path: none; padding: 0; border: 2px solid CanvasText; } .ab-in { clip-path: none; } .ab-mark { background: CanvasText; box-shadow: none; } }
 `;
@@ -58,12 +53,12 @@
   style.textContent = css;
   document.head.appendChild(style);
 
-  let el = null, ta = null, on = false, away = false, at = [0, 0], size = [320, 38], cursor = null, openedAt = 0, cb = {};
+  let el = null, ta = null, on = false, draft = '', pick = false, at = [0, 0], size = [320, 38], cursor = null, openedAt = 0, cb = {};
   const bounds = () => { const S = R.safe ?? { top: 0, right: 0, bottom: 0, left: 0 }; return { l: S.left + 8, t: S.top + 8, r: innerWidth - S.right - 8, b: innerHeight - S.bottom - 8 }; };
   const put = (p) => { at = p; el.style.transform = `translate(${p[0]}px, ${p[1]}px)`; };
   const over = (x, y) => x >= at[0] && x <= at[0] + size[0] && y >= at[1] && y <= at[1] + size[1];
-  // It holds still while the cursor is on it (so it can be clicked) and while it waits; else it's beside the cursor.
-  const held = () => !cursor || away || over(cursor[0], cursor[1]);
+  // It holds still while the cursor is on it (so it can be clicked); else it's beside the cursor.
+  const held = () => !cursor || over(cursor[0], cursor[1]);
   const follow = () => { if (!held()) put(R.askBarPlace(cursor, size, bounds())); };
   // One line, growing to five as you type (then it scrolls).
   const fit = () => {
@@ -85,13 +80,13 @@
     ta.autocomplete = 'off'; ta.spellcheck = false; ta.setAttribute('autocapitalize', 'off'); ta.setAttribute('enterkeyhint', 'send');
     ta.addEventListener('input', fit);
     ta.addEventListener('keydown', (e) => { if (on) cb.onKey?.(e); });
-    ta.addEventListener('focus', () => { away = false; el.classList.remove('away'); });
     ta.addEventListener('blur', () => {
       if (!on) return;
       // A stray blur while it opens (the window is still becoming the one that takes keys): ask for them again.
       if (performance.now() - openedAt < 300) { cb.onPress?.(); return; }
-      if (!ta.value.trim()) { cb.onLeft?.(); return; }
-      away = true; el.classList.add('away');
+      const kept = ta.value;
+      cb.onLeft?.();
+      draft = kept.trim() ? kept : '';
     });
     // A click anywhere on it takes the keys back (the overlay has to be made the key window first: the host does it).
     el.addEventListener('pointerdown', (e) => { if (e.target !== ta) e.preventDefault(); cb.onPress?.(); });
@@ -103,12 +98,13 @@
   const api = {
     get isOpen() { return on; },
     get value() { return ta ? ta.value : ''; },
-    open({ placeholder = '', label = '', cursor: c = null, onKey, onPress, onLeft } = {}) {
+    open({ placeholder = '', value = '', label = '', cursor: c = null, onKey, onPress, onLeft } = {}) {
       if (!el) build();
       cb = { onKey, onPress, onLeft };
-      ta.value = ''; ta.placeholder = placeholder;
+      const back = !value && draft;
+      ta.value = back ? draft : String(value); ta.placeholder = placeholder;
+      draft = '';
       if (label) ta.setAttribute('aria-label', label);
-      away = false; el.classList.remove('away');
       // No cursor seen yet (Wayland, until it crosses the overlay): the upper middle of the screen.
       const B = bounds();
       cursor = c ?? cursor ?? [(B.l + B.r) / 2 - 160 - AHEAD, B.t + (B.b - B.t) / 3];
@@ -118,15 +114,16 @@
       // take the keys straight away: a hidden field can't be focused.
       fit();
       el.classList.add('on');
+      pick = !!back; // selected once it has the keys: typing replaces it, an arrow key keeps it
       return api;
     },
     // The cursor moved (every sample the host gets).
     ptr(x, y) { cursor = [x, y]; if (on) follow(); },
-    focus() { if (on) ta.focus({ preventScroll: true }); },
+    focus() { if (!on) return; ta.focus({ preventScroll: true }); if (pick) { pick = false; ta.select(); } },
     close() {
       if (!el || !on) return;
-      on = false; away = false; cb = {};
-      el.classList.remove('on', 'away');
+      on = false; draft = ''; pick = false; cb = {};
+      el.classList.remove('on');
       ta.blur(); // what was typed stays while it fades out; the next open clears it
     },
   };

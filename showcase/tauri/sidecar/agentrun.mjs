@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { ClaudeCodeAgent } from './claudecode.mjs';
 import { agentEvents } from './agentstream.mjs';
 import { createTools } from './tools.mjs';
+import { leanTools } from './lean.mjs';
 import { agentSystem, checkFinish, toolsFor } from './agents.mjs';
 
 // stdout isn't the app's protocol here, but the sidecar only reads stderr from this process.
@@ -98,6 +99,7 @@ async function run({ agent: a, model: md, content }) {
       },
     },
   ];
+  leanTools(tools); // short schemas for the model (lean.mjs)
   if (md.modelInfo) registerRuntimeModels([md.modelInfo]);
   const ctl = new AbortController();
   const budget = (md.budget ?? 100_000) * 3.6;

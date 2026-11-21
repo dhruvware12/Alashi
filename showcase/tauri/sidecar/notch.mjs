@@ -1,3 +1,4 @@
-// Where the agent appears (the panel's "Where I appear"): 'off' (beside the cursor, the default), or on a Mac with a
-// notched screen, 'drop' (the capsule) or 'spread' (widening out of the notch). See showcase/roamies/notch.js.
-export const pickNotch = ({ mac, notchScreen, pick }) => (mac && notchScreen && ['spread', 'drop'].includes(pick) ? pick : 'off');
+// Where the agent appears (the panel's "Where I appear"): 'off' (beside the cursor, the default), 'drop' (the capsule
+// at the top of the screen, on every desktop) or, with a notched screen (a Mac), 'spread' (widening out of the notch);
+// without one, 'spread' is the capsule. See showcase/roamies/notch.js.
+export const pickNotch = ({ notchScreen, pick }) => (pick === 'drop' || (pick === 'spread' && !notchScreen) ? 'drop' : pick === 'spread' ? 'spread' : 'off');

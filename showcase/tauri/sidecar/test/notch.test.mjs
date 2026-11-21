@@ -6,12 +6,14 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { pickNotch } from '../notch.mjs';
 
-assert.equal(pickNotch({ mac: true, notchScreen: true, pick: undefined }), 'off', 'off until picked');
-assert.equal(pickNotch({ mac: true, notchScreen: true, pick: 'drop' }), 'drop');
-assert.equal(pickNotch({ mac: true, notchScreen: true, pick: 'spread' }), 'spread');
-assert.equal(pickNotch({ mac: true, notchScreen: false, pick: 'drop' }), 'off', 'no notched screen');
-assert.equal(pickNotch({ mac: false, notchScreen: true, pick: 'drop' }), 'off', 'not a Mac');
-assert.equal(pickNotch({ mac: true, notchScreen: true, pick: 'nonsense' }), 'off');
+assert.equal(pickNotch({ notchScreen: true, pick: undefined }), 'off', 'off until picked');
+assert.equal(pickNotch({ notchScreen: true, pick: 'drop' }), 'drop');
+assert.equal(pickNotch({ notchScreen: true, pick: 'spread' }), 'spread');
+// The capsule comes to Windows, Linux and Macs without a notch; the notch style needs a notch, else it's the capsule.
+assert.equal(pickNotch({ notchScreen: false, pick: 'drop' }), 'drop', 'no notched screen: the capsule still');
+assert.equal(pickNotch({ notchScreen: false, pick: 'spread' }), 'drop', 'no notch to widen out of');
+assert.equal(pickNotch({ notchScreen: false, pick: undefined }), 'off');
+assert.equal(pickNotch({ notchScreen: true, pick: 'nonsense' }), 'off');
 
 // A stand-in DOM: every element answers anything, and covers the box 0..500 x 0..60.
 const noop = () => {};
@@ -25,8 +27,8 @@ function node(tag) {
     getBoundingClientRect: () => ({ left: 0, top: 0, right: 500, bottom: 60, width: 500, height: 60 }),
     querySelector: (q) => (found[q] ??= node('div')), querySelectorAll: () => [], appendChild: (c) => kids.push(c), append: (...c) => kids.push(...c),
     replaceChildren(...c) { kids.length = 0; kids.push(...c); }, get children() { return kids; },
-    addEventListener: noop, animate: () => ({ cancel: noop }), getAnimations: () => [], getContext: () => new Proxy({}, { get: () => noop }),
-    scrollHeight: 0, offsetHeight: 0, offsetWidth: 0,
+    on: {}, addEventListener(t, f) { (this.on[t] ??= []).push(f); }, fire(t) { (this.on[t] ?? []).forEach((f) => f({})); }, animate: () => ({ cancel: noop }), getAnimations: () => [], getContext: () => new Proxy({}, { get: () => noop }),
+    scrollHeight: 0, offsetHeight: 0, offsetWidth: 0, scrollTop: 0, clientHeight: 0,
   };
   els.push(base);
   return base;
@@ -81,6 +83,7 @@ flush();
 assert.equal(sr.textContent, 'Run npm test?');
 assert.equal(R.notchHit(100, 20), true, 'Allow buttons take clicks');
 assert.equal(R.notchHit(900, 20), false, 'outside it, never');
+assert.equal(R.notchTakes(), true, 'Linux gets its box as a click area while it has buttons');
 // A line said while it's closed ("I heard you…") is measured once it's open, so its card fits it (it kept the last
 // reply's height, and lost its bottom padding).
 R.notch.close(); flush(); frames();
@@ -97,4 +100,133 @@ R.notch.done();
 assert.equal(R.notch.active, true, 'the cut-short turn ending leaves it listening');
 R.notch.fail('stopped');
 assert.equal(capsule.dataset.mode, 'listen', 'an error from it does too');
+// A long reply scrolls: new words keep the newest line in view, unless they scrolled up to read, and only their own
+// scrolling (not the text being replaced as words stream in) counts as scrolling up.
+R.notch.close(); flush(); frames();
+{
+  const t = capsule.querySelector('.nc-text');
+  t.scrollHeight = 1000; t.clientHeight = 140;
+  R.notch.text('a long reply'); frames();
+  assert.equal(t.scrollTop, 1000, 'it follows the newest line');
+  t.scrollTop = 0; t.fire('scroll'); // the text was replaced, not scrolled by them
+  R.notch.text(' and more'); frames();
+  assert.equal(t.scrollTop, 1000, 'a scroll they didn\'t make leaves it following');
+  t.fire('wheel'); t.scrollTop = 300; t.fire('scroll');
+  R.notch.text(' and more'); frames();
+  assert.equal(t.scrollTop, 300, 'scrolled up to read: new words leave it where it is');
+  t.fire('wheel'); t.scrollTop = 860; t.fire('scroll');
+  R.notch.text(' and more'); frames();
+  assert.equal(t.scrollTop, 1000, 'back at the bottom: it follows again');
+  t.fire('wheel'); t.scrollTop = 300; t.fire('scroll');
+  R.notch.close(); flush(); frames(); R.notch.text('a new reply'); frames();
+  assert.equal(t.scrollTop, 1000, 'a new reply starts at its newest line');
+}
+// Regression: on the capsule the Allow buttons sometimes vanished while the question still waited. A turn that ended
+// (or a line said) under the prompt started it lingering, and the next status (a tool, thinking) then wiped the card.
+R.notch.close(); flush(); frames();
+{
+  const choices = capsule.querySelector('.nc-choices');
+  let chose = -1;
+  R.notch.think();
+  const h = R.notch.prompt('Open Notepad?', ['Allow', "Don't allow"], (i) => { chose = i; });
+  R.notch.done();
+  R.notch.tool('Searching');
+  R.notch.think();
+  R.notch.text('More words.');
+  R.notch.say('A reminder.');
+  frames();
+  assert.equal(choices.hidden, false, 'the Allow buttons stay while the question waits');
+  assert.equal(R.notchHit(100, 20), true, 'and still take clicks');
+  assert.equal(capsule.dataset.mode, 'ask', 'it still says it needs an OK');
+  assert.match(capsule.querySelector('.nc-text').children.map((c) => c.textContent).join('\n'), /^Open Notepad\?$/, 'the question stays as asked');
+  h.close();
+  assert.equal(choices.hidden, true, 'answered, they go');
+  assert.match(capsule.querySelector('.nc-text').children.map((c) => c.textContent).join('\n'), /More words\./, 'the words that came meanwhile show after');
+}
+// Rating a reply: Good / Wrong under a rated reply only, never during an Allow question, and gone with a new turn.
+R.notch.close(); flush(); frames();
+{
+  const rate = capsule.querySelector('.nc-rate'), choices = capsule.querySelector('.nc-choices');
+  const said = [];
+  R.notch.think(); R.notch.text('Exported 3 frames.'); R.notch.done({ rate: (good) => said.push(good) });
+  assert.equal(rate.hidden, false, 'a rated reply shows Good and Wrong');
+  assert.deepEqual(rate.children.map((b) => b.textContent), ['Good', 'Wrong']);
+  assert.notEqual(choices.hidden, false, 'not the Allow buttons');
+  assert.equal(R.notchHit(100, 20), true, 'they take clicks');
+  rate.children[1].fire('click');
+  assert.deepEqual(said, [false], 'Wrong sends once');
+  assert.equal(rate.hidden, true, 'and the buttons go');
+  R.notch.begin();
+  R.notch.text('Done.'); R.notch.done();
+  assert.equal(rate.hidden, true, 'a reply that is not rated has none');
+  R.notch.begin(); R.notch.text('Done again.'); R.notch.done({ rate: (good) => said.push(good) });
+  rate.children[0].fire('click');
+  assert.deepEqual(said, [false, true], 'Good sends');
+  assert.match(rate.children.map((c) => c.textContent).join(''), /Thanks/, 'and says thanks');
+  R.notch.begin(); R.notch.text('More.'); R.notch.done({ rate: noop });
+  R.notch.think();
+  assert.equal(rate.hidden, true, 'a new turn clears them');
+  R.notch.text('Opening it.');
+  const h = R.notch.prompt('Open Notepad?', ['Allow', "Don't allow"], noop);
+  R.notch.done({ rate: noop });
+  assert.equal(rate.hidden, true, 'never while an Allow question waits');
+  h.close();
+  R.notch.close(); flush(); frames();
+  R.notch.text('Hi.'); R.notch.done({ rate: noop });
+  R.notch.prompt('Run it?', ['Allow', "Don't allow"], noop);
+  assert.equal(rate.hidden, true, 'an Allow question hides them');
+  R.notch.fail('stopped');
+  assert.equal(rate.hidden, true);
+}
+// Launch and summon with the capsule on: it says hi itself (the Roamie no longer pops out by the cursor), and never
+// over a reply or a question already in it.
+R.notch.close(); flush(); frames();
+{
+  const label = capsule.querySelector('.nc-label');
+  assert.equal(R.notch.hello(), true, 'it comes out');
+  assert.equal(R.notch.active, true);
+  assert.equal(capsule.dataset.mode, 'done');
+  assert.equal(label.textContent, 'Hi there');
+  assert.equal(R.notchHit(100, 20), false, 'nothing to click: clicks go to the app below');
+  R.notch.close(); flush(); frames();
+  R.notch.text('A reply.'); R.notch.done();
+  assert.equal(R.notch.hello(), false, 'a reply on show stays');
+  assert.match(capsule.querySelector('.nc-text').children.map((c) => c.textContent).join(''), /A reply\./);
+  R.notch.close(); flush(); frames();
+  R.notch.think();
+  assert.equal(R.notch.hello(), false, 'thinking stays');
+  R.notch.close(); flush(); frames();
+  R.notch.prompt('Open Notepad?', ['Allow', "Don't allow"], noop);
+  assert.equal(R.notch.hello(), false, 'a question stays');
+  R.notch.close(); flush(); frames();
+}
+// Regression: the hello at launch stayed up for good. The notch style arrives just after it, and the capsule came back
+// in the new style without its timer.
+{
+  R.notchHit(900, 20); // the cursor is away from it (resting on it keeps it up)
+  R.notch.style = 'drop'; // the pill until the notched screen is known
+  assert.equal(R.notch.style, 'drop');
+  R.notch.hello();
+  R.notch.style = 'spread';
+  flush();
+  assert.equal(R.notch.active, true, 'back out in the new style');
+  await new Promise((r) => setTimeout(r, 2800));
+  for (let i = 0; i < 3; i++) rafs.splice(0).forEach((f) => f(performance.now()));
+  assert.equal(R.notch.active, false, 'and it still folds away');
+}
+// Regression (#134): Linux's WebKitGTK drew the liquid pour (SVG blur and threshold filters) as a solid black shape
+// that broke into stripes, so on Linux the capsule opens without it; elsewhere it still pours.
+for (const linux of [false, true]) {
+  els.length = 0;
+  const c = {
+    ...ctx, matchMedia: () => ({ matches: false, addEventListener: noop }),
+    window: { ...(linux ? { ROAMIE_LINUX: 'x11' } : {}), Roamie: { safe: { top: 30 }, wake: noop } },
+  };
+  vm.runInNewContext(fs.readFileSync(new URL('../../../roamies/notch.js', import.meta.url), 'utf8'), c);
+  const cap = els.find((e) => e.className?.startsWith?.('nc '));
+  c.window.Roamie.notch.enabled = true;
+  c.window.Roamie.notch.style = 'drop';
+  c.window.Roamie.notch.hello();
+  assert.equal(cap.classList.contains('liquid'), !linux, linux ? 'no liquid pour on Linux' : 'the liquid pour elsewhere');
+}
 console.log('notch tests: passed');

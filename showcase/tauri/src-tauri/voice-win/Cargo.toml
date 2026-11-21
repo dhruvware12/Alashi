@@ -9,7 +9,9 @@ license = "AGPL-3.0-only"
 publish = false
 
 [dependencies]
-parakeet-rs = "=0.4.3"
+# ONNX Runtime is loaded at run time from Microsoft's build (fetch-onnxruntime.sh), not linked from ort's prebuilt
+# one, which needs AVX2 and crashes on older CPUs (#128).
+parakeet-rs = { version = "=0.4.3", default-features = false, features = ["cpu", "load-dynamic", "api-28"] }
 serde_json = "=1.0.154"
 hound = "=3.5.1"
 
@@ -23,6 +25,14 @@ windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Grap
 # The talk chord on X11 sessions (pure Rust, no system library).
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "=0.13.2"
+
+# The wake word end to end on a spoken recording (tests/wake_e2e.rs): needs the speech model, so only on request.
+[features]
+e2e = []
+
+[[test]]
+name = "wake_e2e"
+required-features = ["e2e"]
 
 [profile.release]
 lto = true

@@ -2,7 +2,17 @@
 // A provider that takes a plan key and a pay-per-token key (Kimi, Xiaomi) gets a card for each: they're
 // stored apart, and each works only on its own endpoint.
 
-import { apiKeyStorageKeys, getModelsForProvider, providerStorageKeys } from '@kenkaiiii/gg-core';
+import { AuthStorage, apiKeyStorageKeys, getModelsForProvider, providerStorageKeys } from '@kenkaiiii/gg-core';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+
+// Its folder (~/.gg) is made first: since data moved to ~/Roamies nothing else makes it, and saving a key on a fresh
+// install failed on the lock file beside auth.json (E30, #121, #123).
+export function openAuth(file) {
+  const auth = new AuthStorage(file);
+  mkdirSync(path.dirname(auth.path), { recursive: true });
+  return auth;
+}
 
 /** Roamies reads screenshots, so a model that can't see images is never offered, picked or kept. */
 export const seesImages = (provider, id) => !!getModelsForProvider(provider).find((m) => m.id === id)?.supportsImages;

@@ -5,7 +5,8 @@
   const KEY = 'roamie-sound';
   const NOTE = { C5: 523.25, E5: 659.25, G5: 783.99, A5: 880, C6: 1046.5, E6: 1318.5, G6: 1568 };
   const GAP = { hop: 0.12, stomp: 0.2, bonk: 0.14, pip: 0.08, snore: 1, blip: 0.05, tick: 0.2, key: 0.03, scribble: 0.06, ping: 0.08 };
-  let live = null, enabled = true, unlocked = false;
+  let live = null, enabled = true, unlocked = false, volume = 1;
+  const LEVEL = 0.22;
   try { enabled = localStorage.getItem(KEY) !== 'off'; } catch {}
   const last = {};
 
@@ -13,7 +14,7 @@
     const lp = ac.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.value = 4800; lp.Q.value = 0.4;
     const out = ac.createGain();
-    out.gain.value = 0.22;
+    out.gain.value = LEVEL;
     out.connect(lp); lp.connect(dest);
     const pulse = (duty) => {
       const n = 32, re = new Float32Array(n + 1), im = new Float32Array(n + 1);
@@ -131,7 +132,7 @@
     expand: (X, t) => { [0, 1, 2].forEach((i) => tone(X, t + i * 0.035, { wave: 'p12', f0: 700 + i * 260, dur: 0.04, vol: 0.14 })); },
   };
 
-  const start = () => { if (!live) { const ac = new AudioContext(); live = rig(ac, ac.destination); } live.ac.resume(); unlocked = true; };
+  const start = () => { if (!live) { const ac = new AudioContext(); live = rig(ac, ac.destination); live.out.gain.value = LEVEL * volume; } live.ac.resume(); unlocked = true; };
   if (window.ROAMIE_AUTOSOUND) start();
   addEventListener('pointerdown', start, { capture: true });
   addEventListener('keydown', start, { capture: true });
@@ -152,6 +153,8 @@
       SOUNDS[name](rig(ac, ac.destination), 0.01, arg);
       return (await ac.startRendering()).getChannelData(0);
     },
+    get volume() { return volume; },
+    set volume(v) { volume = Number.isFinite(Number(v)) ? Math.max(0, Math.min(1, Number(v))) : 1; if (live) live.out.gain.value = LEVEL * volume; },
     get enabled() { return enabled; },
     set enabled(v) { enabled = v; try { localStorage.setItem(KEY, v ? 'on' : 'off'); } catch {} },
     bindToggle(btn) {

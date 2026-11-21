@@ -28,7 +28,9 @@
       try { ac = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' }); } catch { ac = new AudioContext({ latencyHint: 'interactive' }); }
       out = ac.createGain();
       meter = ac.createAnalyser(); meter.fftSize = 512; buf = new Float32Array(meter.fftSize);
-      out.connect(meter); meter.connect(ac.destination);
+      // The volume setting comes after the meter, so a quiet voice still moves the mouth fully.
+      vol = ac.createGain(); vol.gain.value = volume;
+      out.connect(meter); meter.connect(vol); vol.connect(ac.destination);
     }
     if (ac.state !== 'running') ac.resume().catch(() => {});
     return ac;
@@ -68,7 +70,9 @@
     s.onended = () => { live = live.filter((x) => x !== s); };
   };
 
+  let vol = null, volume = 1;
   R.voiceOut = {
+    setVolume(v) { volume = Number.isFinite(Number(v)) ? Math.max(0, Math.min(1, Number(v))) : 1; if (vol) vol.gain.value = volume; },
     handle(m) {
       if (m.stop) return stop();
       if ('feel' in m) {
@@ -85,6 +89,16 @@
     },
     playing: () => !!ac && ac.state === 'running' && live.length > 0 && ac.currentTime < endAt + 0.05,
     cps: () => rate,
+    // Seconds of the current reply heard so far (waits for chunks that came late don't count), or null with none.
+    played() {
+      if (!ac || id == null) return null;
+      const t = ac.currentTime;
+      let p = 0;
+      for (const [s, d] of sched) { if (t <= s) break; p += Math.min(d, t - s); }
+      return p;
+    },
+    // A reply is still being said: more of it is coming, or some is still sounding.
+    speaking() { return id != null && (!over.has(id) || this.playing()); },
     // The feeling in what's being said right now (null: none, or nothing playing).
     feel() {
       const list = feels.get(id);

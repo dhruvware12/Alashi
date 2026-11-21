@@ -26,7 +26,7 @@ You'll get an acknowledgement within 7 days. Once a fix ships, the advisory will
 - the safety switches for writing files and running commands
 - the Tauri shell and its commands
 - the macOS helpers (voice and hands)
-- memory and session files in `~/.gg/sidekick/`
+- memory, settings and session files in `~/Roamies/Data/`
 
 ## Out of scope
 

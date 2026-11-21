@@ -55,3 +55,16 @@ function runCommandWith({ skipAllow, answer }) {
 }
 
 console.log('skipallow: ok');
+
+// The working folder (~/Roamies for the chat): commands run there, and the tool says so instead of "home folder".
+{
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'workdir-'));
+  const { tools } = createTools({ ...base, ask: async () => null, workdir });
+  const run = tools.find((t) => t.name === 'run_command');
+  assert.ok(run.description.includes(`its working folder (${workdir})`), 'run_command names its folder');
+  assert.ok(!run.description.includes("the user's home folder"));
+  const out = await run.execute({ command: process.platform === 'win32' ? 'cd' : 'pwd' }, undefined);
+  assert.ok(String(out).includes(fs.realpathSync(workdir)) || String(out).includes(workdir), 'and runs there');
+  fs.rmSync(workdir, { recursive: true, force: true });
+  console.log('workdir tests: passed');
+}

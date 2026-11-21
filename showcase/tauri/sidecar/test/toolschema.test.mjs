@@ -2,11 +2,26 @@
 import assert from 'node:assert/strict';
 import { resolveToolSchema } from '@kenkaiiii/gg-ai';
 import { createTools, shellFor } from '../tools.mjs';
+import { LIMITS } from '../draw.mjs';
+import { leanTools } from '../lean.mjs';
 
 const noop = async () => {};
-const { tools } = createTools({ allowActions: false, ui: () => {}, ask: async () => false, openUrl: noop, onCommitments: noop, showList: noop, fmtWhen: String, commitmentsText: () => '', userName: 'Test', focus: { start: () => 'ok', stop: () => 'ok' } });
+const { tools } = createTools({ allowActions: false, ui: () => {}, ask: async () => false, openUrl: noop, onCommitments: noop, showList: noop, fmtWhen: String, commitmentsText: () => '', userName: 'Test', focus: { start: () => 'ok', stop: () => 'ok' }, jobs: { changed: () => {}, run: async () => ({ id: 'a1' }) }, skills: { changed: () => {} } });
 // Focus mode's tools are there where the window in front can be read (focus given), and checked below with the rest.
 assert.ok(tools.some((t) => t.name === 'start_focus') && tools.some((t) => t.name === 'stop_focus'), 'focus tools');
+
+// Scheduled jobs' tools are there when the chat runs jobs (jobs given), and checked below with the rest.
+for (const n of ['schedule_job', 'update_job', 'list_jobs', 'use_skill', 'save_skill', 'forget_skill', 'install_skill']) assert.ok(tools.some((t) => t.name === n), n);
+assert.ok(!createTools({ allowActions: false, ui: () => {}, ask: async () => false, openUrl: noop, onCommitments: noop, showList: noop, fmtWhen: String, commitmentsText: () => '', userName: 'Test' }).tools.some((t) => t.name === 'schedule_job'), 'no job tools without jobs (background agents)');
+
+// Connections' tools (mcp.mjs) are checked with the rest.
+{
+  const { createMcpTools } = await import('../mcp.mjs');
+  const { isYes } = await import('../safety.mjs');
+  const extra = createMcpTools({ mcp: {}, ask: async () => null, isYes, checkCall: () => ({ level: 'safe' }) });
+  assert.deepEqual(extra.map((t) => t.name), ['add_connection', 'remove_connection', 'connection_tools', 'use_connection']);
+  tools.push(...extra);
+}
 
 // Regression: the old fetch_url's url had format "uri", which OpenAI strict schemas reject, failing every OpenAI request.
 const formats = [];
@@ -20,6 +35,7 @@ const walk = (name, node, at) => {
 };
 for (const t of tools) walk(t.name, resolveToolSchema(t), '');
 assert.deepEqual(formats, [], 'no tool uses a string format');
+
 // draw replaced point_at, on every platform (pixels from a screenshot work everywhere).
 assert.ok(tools.some((t) => t.name === 'draw') && !tools.some((t) => t.name === 'point_at'), 'draw, not point_at');
 const drawSchema = JSON.stringify(resolveToolSchema(tools.find((t) => t.name === 'draw')));
@@ -41,7 +57,7 @@ assert.ok(!/"(oneOf|anyOf|allOf)"/.test(drawSchema), 'draw is one flat object sc
   for (const k of ['flow', 'table', 'bars', 'map', 'math', 'geometry', 'quiz']) assert.ok(mark.kind.enum.includes(k), `${k} is a kind of mark`);
   assert.ok(mark.parts.items.properties.motion, 'a part can move');
   assert.ok(d.description.includes('\\frac{a}{b}, \\sqrt{x}') && d.description.includes('no \\begin, & or \\\\ line breaks'), 'the LaTeX in the description reaches the model with single backslashes');
-  assert.ok(d.description.includes('At most 4 cards show at once (one more closes the oldest)'), 'the model knows only a few cards stay up');
+  assert.ok(d.description.includes(`At most ${LIMITS.cardsShown} cards show at once (one more closes the oldest)`), 'the model knows only a few cards stay up');
   assert.ok(d.description.length < 9000, `the draw description stays a readable size (${d.description.length})`);
 }
 console.log('tool schema ok');
@@ -71,7 +87,9 @@ if (process.platform === 'darwin') {
   const actInApp = tools.find((t) => t.name === 'act_in_app').description;
   assert.match(actInApp, /youtube\.com\/results\?search_query=/);
   // ...but when the user asks for the page's own search box, it uses the box.
-  assert.match(actInApp, /unless the user asks you to use the box: then fill it/);
+  assert.match(actInApp, /unless asked to use its box \(then fill it and press return\)/);
+  // Regression: a card's Delete only shows on hover, and clicking the card opened its page instead.
+  assert.match(actInApp, /\{do:'hover', text, near\}[^.]*rests the pointer to show hidden controls/);
 }
 
 // Linux: apps are opened by name through their .desktop files.
@@ -128,3 +146,36 @@ if (process.platform === 'darwin') {
   assert.equal(shellFor('ls', 'linux', { SHELL: '/usr/bin/fish' })[0], '/usr/bin/fish', 'their own shell where set');
   console.log('run_command shell tests: passed');
 }
+
+// install_skill always asks, even with Skip Allow prompts on, says where the skill comes from, and a no installs nothing.
+{
+  const asks = [];
+  const fake = { slug: 'zz-test-skill', name: 'zz test skill', description: 'Only for this test', text: '---\nname: zz test skill\n---\nx', files: [], skipped: 0, from: 'github.com/o/r/zz' };
+  const { tools: t } = createTools({ allowActions: false, ui: () => {}, ask: async (q) => { asks.push(q); return null; }, openUrl: noop, onCommitments: noop, showList: noop, fmtWhen: String, commitmentsText: () => '', userName: 'Test', skipAllow: () => true,
+    skills: { changed: () => {}, fetch: async (src, { pick }) => (pick ? { skills: [fake] } : { choices: ['zz', 'yy'], from: 'github.com/o/r' }) } });
+  const install = t.find((x) => x.name === 'install_skill');
+  assert.match(await install.execute({ source: 'o/r' }), /github\.com\/o\/r has 2 skills: zz, yy\. Ask Test which/, 'several: asks which, installs nothing');
+  assert.equal(asks.length, 0);
+  await assert.rejects(install.execute({ source: 'o/r', skill: 'zz' }, {}), /Test said no, so nothing was installed/);
+  assert.equal(asks.length, 1, 'asked, Skip Allow or not');
+  assert.match(asks[0].placeholder, /Install the skill "zz test skill" from github\.com\/o\/r\/zz\? Only for this test/);
+  assert.deepEqual(asks[0].choices, ['Install', "Don't install"]);
+  console.log('install_skill asks tests: passed');
+}
+
+// Regression (#156): OpenAI's strict mode needs every object's fields. draw's list items were a bare {type: object},
+// which gg-ai sent strict with no fields, and OpenAI refused every request. An object either lists its fields or says
+// it takes any (additionalProperties), which gg-ai sends non-strict.
+const bare = [];
+const objects = (name, node, at) => {
+  if (Array.isArray(node)) return node.forEach((n, i) => objects(name, n, `${at}/${i}`));
+  if (!node || typeof node !== 'object') return;
+  if ([].concat(node.type ?? []).includes('object') && !node.properties && !node.additionalProperties) bare.push(`${name}${at}`);
+  for (const [k, v] of Object.entries(node)) {
+    if (k === 'properties') for (const [p, s] of Object.entries(v)) objects(name, s, `${at}/properties/${p}`);
+    else objects(name, v, `${at}/${k}`);
+  }
+};
+// The model-facing schemas, as the app sends them (lean.mjs), for every tool checked above.
+for (const t of leanTools(tools)) objects(t.name, resolveToolSchema(t), '');
+assert.deepEqual(bare, [], 'every object lists its fields or takes any');

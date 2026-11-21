@@ -485,6 +485,21 @@ impl Ctx {
         Ok(Self::option_in(list, &q))
     }
 
+    /// Of many matches for q (a "Reply" under every post), the one that goes with the near text, scrolled into view.
+    fn near_hit(&self, tree: &Tree, q: &str, near: &str) -> Result<Option<(Node, String)>, String> {
+        let Some(a) = self.anchor(tree, near) else { return Err(format!("Step {}: no text \"{near}\" on this page to find \"{q}\" near.", self.n())) };
+        let all: Vec<(Node, Value)> = tree.find_text(self.w.r, q, true, 200).into_iter().filter(|m| click_match(m.1["match"].as_str().unwrap_or(""))).collect();
+        let best = all.first().map(|m| m.1["match"].clone());
+        let same: Vec<&(Node, Value)> = all.iter().filter(|m| Some(&m.1["match"]) == best.as_ref()).collect();
+        let rects: Vec<Rect> = same.iter().map(|m| m.0.r.unwrap_or_default()).collect();
+        let Some(k) = nearest_after(&a, &rects) else { return Ok(None) };
+        if !rects[k].is_empty() && !self.w.r.contains(rects[k].mid_x(), rects[k].mid_y()) {
+            scroll_into_view(&same[k].0.el);
+            ms(300);
+        }
+        Ok(Some((same[k].0.clone(), same[k].1["text"].as_str().unwrap_or(q).to_string())))
+    }
+
     fn page_sig(&self) -> String {
         let cur = resolve(&self.target).unwrap_or_else(|| self.w.clone());
         format!("{}|{}#", cur.id, cur.title) + &walk(&cur).iter().map(|c| format!("{}|{}", c.1["role"].as_str().unwrap_or(""), label_of(&c.1))).collect::<Vec<_>>().join(";")
@@ -552,24 +567,12 @@ impl Ctx {
                 let mut tree = self.tree();
                 // A checkbox or radio by its label: press the control itself; clicking the words doesn't always tick it.
                 let boxes: Vec<(Node, Value)> = self.controls.iter().filter(|c| [CT_CHECKBOX, CT_RADIO].contains(&c.0.ct) && fold(&label_of(&c.1)) == fold(&q) && c.1["offscreen"].as_bool() != Some(true)).cloned().collect();
-                let mut hit: Option<(Node, String)> = None;
+                let mut hit: Option<(Node, String)>;
                 let mut opened = String::new();
                 if let Some(b) = boxes.iter().find(|b| b.0.web) {
                     hit = Some((b.0.clone(), label_of(&b.1)));
                 } else if let Some(near) = s_str(s, "near").filter(|n| !n.is_empty()) {
-                    // Many matches (a "Reply" under every post): the one that goes with the near text.
-                    let Some(a) = self.anchor(&tree, near) else { return Err(format!("Step {n}: no text \"{near}\" on this page to find \"{q}\" near.")) };
-                    let all: Vec<(Node, Value)> = tree.find_text(self.w.r, &q, true, 200).into_iter().filter(|m| click_match(m.1["match"].as_str().unwrap_or(""))).collect();
-                    let best = all.first().map(|m| m.1["match"].clone());
-                    let same: Vec<&(Node, Value)> = all.iter().filter(|m| Some(&m.1["match"]) == best.as_ref()).collect();
-                    let rects: Vec<Rect> = same.iter().map(|m| m.0.r.unwrap_or_default()).collect();
-                    if let Some(k) = nearest_after(&a, &rects) {
-                        hit = Some((same[k].0.clone(), same[k].1["text"].as_str().unwrap_or(&q).to_string()));
-                        if !rects[k].is_empty() && !self.w.r.contains(rects[k].mid_x(), rects[k].mid_y()) {
-                            scroll_into_view(&same[k].0.el);
-                            ms(300);
-                        }
-                    }
+                    hit = self.near_hit(&tree, &q, near)?;
                 } else {
                     let first = |t: &Tree| t.find_text(self.w.r, &q, false, 8).into_iter().find(|m| click_match(m.1["match"].as_str().unwrap_or(""))).map(|m| (m.0, m.1["text"].as_str().unwrap_or("").to_string()));
                     hit = first(&tree);
@@ -847,6 +850,72 @@ impl Ctx {
                 self.done.push(format!("clicked at {},{}", x as i64, y as i64));
                 self.clicked_spot = true;
             }
+            "hover" => {
+                // Rests the pointer on something without clicking, so controls that only show on hover (a card's ⋯
+                // menu) appear. Pages only react to a real pointer, so it borrows the cursor until the run ends.
+                let q = s_str(s, "text").unwrap_or("").to_string();
+                let mut onto: Option<Node> = None;
+                let mut label = q.clone();
+                let mut spot: Option<(f64, f64)> = None;
+                if let (Some(x), Some(y)) = (s.get("x").and_then(Value::as_f64), s.get("y").and_then(Value::as_f64)) {
+                    let global = s.get("global").and_then(Value::as_bool) == Some(true);
+                    spot = Some(if global { (x, y) } else { (self.w.r.x + x, self.w.r.y + y) });
+                    label = format!("{},{}", x as i64, y as i64);
+                } else if s.get("id").is_some() {
+                    let Some((e, info)) = self.el(s) else {
+                        return Err(format!("Step {n}: no control with id {}. Call read_window again.", s.get("id").map_or("?".into(), |v| v.to_string())));
+                    };
+                    label = label_of(&info);
+                    if label.is_empty() {
+                        label = format!("control {}", info["id"]);
+                    }
+                    onto = Some(e);
+                } else if !q.is_empty() {
+                    let mut tree = self.tree();
+                    let first = |t: &Tree| t.find_text(self.w.r, &q, false, 8).into_iter().find(|m| click_match(m.1["match"].as_str().unwrap_or(""))).map(|m| (m.0, m.1["text"].as_str().unwrap_or("").to_string()));
+                    let hit = match s_str(s, "near").filter(|n| !n.is_empty()) {
+                        Some(near) => self.near_hit(&tree, &q, near)?,
+                        None => {
+                            let mut h = first(&tree);
+                            if h.is_none() && self.scroll_to_text(&tree, &q) {
+                                tree = self.tree();
+                                h = first(&tree);
+                            }
+                            h
+                        }
+                    };
+                    let Some((e, text)) = hit else {
+                        return Err(format!("Step {n}: no visible text \"{q}\" in {}. Check the exact words with a screenshot or read_window.", self.w.app));
+                    };
+                    if !text.is_empty() {
+                        label = text;
+                    }
+                    onto = Some(e);
+                }
+                if let Some(f) = onto.as_ref().and_then(|e| live_rect(&e.el).or(e.r)) {
+                    spot = Some(center(&f));
+                }
+                let Some((x, y)) = spot else { return Err(format!("Step {n}: hover needs text (with near to pick one of many), an id, or x and y.")) };
+                if let Some(name) = window_at(x, y).and_then(|u| hands_off(&u.exe)) {
+                    return Err(format!("Blocked for safety: that spot is on {name}, and I never click in it."));
+                }
+                self.emit_step("hover", onto.as_ref(), Some((x, y)), &label, None);
+                let before: Vec<String> = walk(&self.w).iter().map(|c| label_of(&c.1)).collect();
+                self.real()?;
+                // Two hops, so the page sees the pointer come in (mouseenter) rather than appear on the spot.
+                move_to(x - 6.0, y - 6.0);
+                ms(60);
+                move_to(x, y);
+                ms(400);
+                self.controls = settle(&self.w);
+                let after: Vec<String> = self.controls.iter().map(|c| label_of(&c.1)).collect();
+                let shown = revealed(&before, &after);
+                self.done.push(if shown.is_empty() {
+                    format!("hovered \"{label}\" (no new controls showed up; a screenshot shows what changed)")
+                } else {
+                    format!("hovered \"{label}\" (now showing: {})", shown.join(", "))
+                });
+            }
             "wait" => {
                 let secs = s.get("seconds").and_then(Value::as_f64).unwrap_or(0.5).clamp(0.0, 5.0);
                 let end = Instant::now() + Duration::from_secs_f64(secs);
@@ -996,7 +1065,7 @@ pub fn act(arg: &str) -> ! {
         }
     }
     // A click or key may have changed the page: hand back what's there now, so no read_window round trip is needed.
-    let changing = dos.iter().any(|d| ["click", "click_text", "press_button", "key", "click_at", "fill", "choose", "scroll", "set"].contains(d));
+    let changing = dos.iter().any(|d| ["click", "click_text", "press_button", "key", "click_at", "fill", "choose", "scroll", "set", "hover"].contains(d));
     if changing {
         // After a switch to a window the plan opened, show that one while it is still open.
         let w2 = c.switched.then(|| windows().into_iter().find(|x| x.id == c.w.id)).flatten().or_else(|| resolve(&c.target)).unwrap_or_else(|| c.w.clone());

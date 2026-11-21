@@ -21,6 +21,7 @@ if (a[0] === 'act' && JSON.parse(a[1]).app === 'HopTest') {
     { ev: 'borrow' }, { ev: 'step', i: 2, do: 'type', label: '', text: 'my secret words', bounds: [300, 400, 200, 30] }, { ev: 'return' }]) console.error('@' + JSON.stringify(d));
   console.error('not progress');
 }
+if (a[0] === 'act' && JSON.parse(a[1]).app === 'HoverTest') console.error('@' + JSON.stringify({ ev: 'step', i: 0, do: 'hover', label: 'Q3 report', bounds: [100, 200, 80, 24] }));
 if (a[0] === 'find-text') o = { ok: true, matches: [{ text: a[2], match: 'exact', role: 'button', bounds: [100, 100, 80, 24], window: win }] };
 if (a[0] === 'ui') o = { ok: true, window: win, controls: [], texts: [], note: 'Nothing to list.' };
 if (a[0] === 'front') { if (win.slowFront) { const t = Date.now(); while (Date.now() - t < 2000); } o = { ok: true, app: win.app, title: win.title, ...(win.url ? { url: win.url } : {}) }; }
@@ -68,6 +69,23 @@ assert.equal(calls().find((c) => c[0] === 'capture').length, 4, 'no preview thum
   seen.length = 0;
   await made.hands('ui', 'front');
   assert.deepEqual(seen, []);
+}
+
+// Hover: rests the pointer on a card so its hover-only ⋯ menu shows; the overlay's hand hops there without a tap.
+{
+  const seen = [];
+  const made = createTools({ allowActions: () => true, ui: (m) => { if (m.kind === 'hands') seen.push(m); }, ask: async () => false, openUrl: noop, onCommitments: noop, showList: noop, fmtWhen: String, commitmentsText: () => '', userName: 'Test' });
+  await made.hands('act', JSON.stringify({ app: 'HoverTest', steps: [{ do: 'hover', text: 'Q3 report' }] }));
+  assert.deepEqual(seen.find((m) => m.step), { kind: 'hands', step: { bounds: [100, 200, 80, 24], hover: true } });
+  // A hover step reaches the helper as given, before the click on what it revealed.
+  fs.writeFileSync(log, '');
+  await tool('act_in_app').execute({ target: 'TextEdit', steps: [{ do: 'hover', text: 'Q3 report', near: 'Reports' }, { do: 'click_text', text: 'More options', near: 'Q3 report' }] }, ctx);
+  assert.deepEqual(JSON.parse(calls().find((c) => c[0] === 'act')[1]).steps[0], { do: 'hover', text: 'Q3 report', near: 'Reports' });
+  // x, y are screenshot pixels, mapped to screen points like click_at.
+  await tool('take_screenshot').execute({ target: 'TextEdit' }, ctx);
+  fs.writeFileSync(log, '');
+  await tool('act_in_app').execute({ target: 'TextEdit', steps: [{ do: 'hover', x: 400, y: 300 }] }, ctx);
+  assert.deepEqual(JSON.parse(calls().find((c) => c[0] === 'act')[1]).steps[0], { do: 'hover', x: 400, y: 300, global: true });
 }
 
 // An app that isn't installed: one clear answer instead of "No matching window".
@@ -191,17 +209,38 @@ assert.match(opened, /no app called "NoSuchAppRoamiesTest"/, 'treated as a link 
     made.ink.cleared();
     assert.equal(made.ink.describe(), '', 'unpinned, it goes with the rest');
   }
-  // Regression: "make everything" drew eight cards at once, which covered the screen. Four stay up; the model is
+  // Regression: "make everything" drew eight cards at once, which covered the screen. Only a few stay up; the model is
   // told which closed, and what it lists as on screen is what's left.
   made.nextTurn();
-  const many = await draw.execute({ beats: ['a', 'b', 'c', 'd', 'e', 'f'].map((text) => ({ say: `Card ${text}.`, marks: [{ kind: 'note', text }] })) }, { toolCallId: 'd13' });
-  assert.match(many, /Drew p\d+ note “a”, .*p\d+ note “f”\./, 'all six are named as drawn');
-  assert.match(many, /Only 4 cards stay up at once, so the oldest closed as newer ones were drawn \(p\d+, p\d+\)\./);
-  assert.match(many, /On screen now: p\d+ note “c”, p\d+ note “d”, p\d+ note “e”, p\d+ note “f”\./);
+  const many = await draw.execute({ beats: 'abcdefghij'.split('').map((text) => ({ say: `Card ${text}.`, marks: [{ kind: 'note', text }] })) }, { toolCallId: 'd13' });
+  assert.match(many, /Drew p\d+ note “a”, .*p\d+ note “j”\./, 'all ten are named as drawn');
+  assert.match(many, /Only 8 cards stay up at once, so the oldest closed as newer ones were drawn \(p\d+, p\d+\)\./);
+  assert.match(many, /On screen now: p\d+ note “c”, (p\d+ note “[d-i]”, ){6}p\d+ note “j”\./);
   // A drawing that goes by itself (the setup showcase) keeps all of its cards.
   made.nextTurn();
-  await made.ink.show(['a', 'b', 'c', 'd', 'e'].map((text) => ({ say: `Card ${text}.`, marks: [{ kind: 'note', text }] })), 'showcase-2', { fade: 5 });
-  assert.match(made.ink.describe(), /note “a”.*note “e”/, 'the showcase keeps five cards');
+  await made.ink.show('abcdefghij'.split('').map((text) => ({ say: `Card ${text}.`, marks: [{ kind: 'note', text }] })), 'showcase-2', { fade: 5 });
+  assert.match(made.ink.describe(), /note “a”.*note “j”/, 'the showcase keeps all ten cards');
+  // Regression (#113): asked to keep the 3D model up, the next drawing still took it away, and talking over that drawing
+  // took both. keep: true leaves the cards up; cancelling takes only what that request drew.
+  made.ink.clear(); made.nextTurn();
+  await draw.execute({ beats: [{ say: 'An atom.', marks: [{ kind: 'note', text: 'atom' }] }] }, { toolCallId: 'k1' });
+  made.nextTurn(); other.length = 0;
+  await draw.execute({ keep: true, beats: [{ say: 'A timeline.', marks: [{ kind: 'note', text: 'timeline' }] }] }, { toolCallId: 'k2' });
+  assert.ok(!other.some((e) => e.type === 'ink_clear' && !e.screen), 'keep clears only the screen marks');
+  assert.match(made.ink.describe(), /note “atom”.*note “timeline”/);
+  made.nextTurn(); hold = true; other.length = 0;
+  const over = new AbortController();
+  const half = draw.execute({ keep: true, beats: [step('Click Scale.', 'Scale')] }, { toolCallId: 'k3', signal: over.signal });
+  while (!sent.some((e) => e.id === 'k3')) await new Promise((r) => setTimeout(r, 5));
+  await new Promise((r) => setTimeout(r, 20));
+  over.abort();
+  assert.equal(await half, 'Stopped.');
+  hold = false;
+  const cleared = other.at(-1);
+  assert.equal(cleared.type, 'ink_clear'); assert.equal(cleared.stop, true); assert.equal(cleared.screen, true);
+  assert.equal(cleared.parts.length, 1, 'only the cancelled drawing goes');
+  assert.match(made.ink.describe(), /note “atom”.*note “timeline”/, 'the kept cards stay');
+  assert.doesNotMatch(made.ink.describe(), /Scale/);
   console.log('draw tool tests: passed');
 }
 

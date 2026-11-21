@@ -23,7 +23,8 @@ key) receives:
 
 **Fish Audio** or **Google** (Gemini), whichever you pick as the voice, receives the text of each reply to speak it, only if spoken replies are on. It uses your own key for that service (for Gemini, the Gemini key you added for the AI is used unless you save a separate one for the voice).
 
-**GitHub** is used to check for and download updates.
+**GitHub** is used to check for and download updates, and to download a skill when you ask Roamies to install one
+(the link you gave, or the page it found for it).
 
 **Hugging Face** is used once, on Windows and Linux, to download the speech model.
 
@@ -35,6 +36,12 @@ request a browser would send.
 **Search engines**: when the agent searches the web (its `web_search` tool) on a model from Anthropic, Anthropic
 runs the search. On other providers, or when that search fails, the search words go to DuckDuckGo and, if it
 doesn't answer, to Brave, Bing or Google.
+
+**Connected apps and services (MCP servers)**: only the ones you ask Roamies to connect, and only after you say yes.
+When the agent uses one, it receives what that call needs (for example the text of an issue to create, or the
+words to search for), plus any key you gave it. A remote server is run by that service; one that runs on your
+computer can reach the internet like any program. Roamies itself never sends your conversation, memory or files
+to them on its own.
 
 Each provider's own privacy policy applies to what is sent to it.
 
@@ -60,16 +67,27 @@ Each provider's own privacy policy applies to what is sent to it.
 
 ## What's stored on your computer
 
-Everything lives in `~/.gg` (on Windows, `%USERPROFILE%\.gg`) and stays on your computer:
+Everything lives in one **Roamies** folder in your home folder (`~/Roamies`, on Windows `%USERPROFILE%\Roamies`)
+and stays on your computer:
 
 | File or folder           | What's in it                                                                        |
 | ------------------------ | ----------------------------------------------------------------------------------- |
-| `sidekick.json`          | your settings                                                                       |
-| `sidekick/memory.json`   | facts Roamies learned and your commitments                                          |
-| `sidekick/sessions/`     | conversations (the newest 60 are kept)                                              |
-| `sidekick/logs/`         | activity logs: tool names, timings, errors and short snippets of tool results (such as a line of window or page text); text you type into apps or files is reduced to its length; kept 7 days |
-| `sidekick/usage.jsonl`   | token counts and timings only, never content                                       |
-| `auth.json`              | your AI sign-ins, shared with GG Coder                                              |
+| `Data/settings.json`     | your settings                                                                       |
+| `Data/memory.json`       | facts Roamies learned and your commitments                                          |
+| `Data/sessions/`         | conversations (the newest 60 are kept)                                              |
+| `Data/logs/`             | activity logs: tool names, timings, errors and short snippets of tool results (such as a line of window or page text); text you type into apps or files is reduced to its length; kept 7 days. The app's own logs (`sidekick.log`, `sidekick-voice.log`, `sidekick-guide.log`) are here too |
+| `Data/usage.jsonl`       | token counts and timings only, never content                                       |
+| `Data/jobs.json`         | your scheduled jobs (never synced to another computer)                             |
+| `Data/mcp.json`          | your connections; their keys and tokens are kept with your other keys, not here   |
+| `Data/models/`           | the speech model, on Linux (on Windows it's in `%LOCALAPPDATA%\Roamies\models`)    |
+| `Skills/`                | the skills Roamies learned or you installed, one folder each with its `SKILL.md`   |
+| `Agents/`                | what background agents made                                                         |
+
+Your AI sign-ins are in `~/.gg/auth.json` (on Windows, `%USERPROFILE%\.gg\auth.json`), shared with GG Coder.
+
+Older versions kept Roamies' data in `~/.gg/sidekick` and `~/.gg/sidekick.json`. The first launch after
+updating copies it into `~/Roamies/Data` and leaves the old copy where it was, with a `MOVED.txt` note. You can
+delete the old copy once you're happy everything came across.
 
 **Save Diagnostics** (the panel's About page, or the tray icon's menu) writes one `roamies-diagnostics-….log` file to
 your Downloads folder, only when you ask. It holds the logs above, your system and screen details, your microphones and
@@ -77,11 +95,12 @@ permission states, and your settings. Keys, tokens, email addresses, names, your
 first. Nothing is uploaded: it stays on your computer unless you choose to send it (for example by attaching it to a
 GitHub issue).
 
-Your Fish Audio key and your Gemini voice key are kept in the macOS Keychain, encrypted with DPAPI on Windows, or in your desktop's keyring
+Your Fish Audio key, your Gemini voice key and the keys for your connections are kept in the macOS Keychain, encrypted with DPAPI on Windows, or in your desktop's keyring
 (through the Secret Service) on Linux.
 
 You can see what Roamies remembers on the panel's **Memory** page, and remove it with **Forget** or
-**Forget Everything**.
+**Forget Everything**. Learned skills, connections and scheduled jobs are on the **Abilities** page, under its
+**Skills**, **Connections** and **Routines** tabs, each with **Remove**.
 
 ## Deleting everything
 

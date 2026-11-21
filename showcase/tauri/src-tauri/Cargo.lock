@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "alashi"
-version = "0.1.42"
+version = "0.1.49"
 dependencies = [
  "global-hotkey",
  "gtk",

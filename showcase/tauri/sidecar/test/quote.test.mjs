@@ -40,6 +40,8 @@ assert.match(lim, /taking over as JARVIS, with the conversation so far/);
 assert.match(lim, /exact words, quoted verbatim: “summarise my inbox”/);
 assert.match(lim, /Open your reply with one short sentence, in character, saying Claude Haiku 5\.5 is at its limit and you're covering until about 4:10 pm/);
 assert.match(handoffNote({ userName: 'Ken', assistant: 'J', reason: 'limit', from: 'X', words: '' }), /covering for now/, 'no reset time known');
+assert.match(handoffNote({ userName: 'Ken', assistant: 'J', reason: 'limit', from: 'GPT-5.5', words: '', fix: 'set GG Coder to 100%.' }), /covering for now, and pass on in your own words how to fix it: set GG Coder to 100%\.; then do/, 'a fix is passed on');
+assert.doesNotMatch(lim, /how to fix it/, 'no fix, no line');
 // Unavailable for another reason: says why, still keeps their words
 const un = handoffNote({ userName: 'Ken', assistant: 'JARVIS', reason: 'unavailable', from: 'Claude Opus 5.5', because: "its sign-in or key isn't working", untilText: '3:00 pm', words: 'fix the build' });
 assert.match(un, /Claude Opus 5\.5 isn't available right now \(its sign-in or key isn't working\); it'll be tried again around 3:00 pm/);

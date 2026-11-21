@@ -423,6 +423,18 @@ enum InputDevice {
         guard let dev = defaultInput(), let t = transport(dev), t == kAudioDeviceTransportTypeBluetooth || t == kAudioDeviceTransportTypeBluetoothLE else { return nil }
         return all().first { transport($0) == kAudioDeviceTransportTypeBuiltIn && hasInput($0) }
     }
+    /// The default input as this process sees it now, if it's a live mic.
+    static func current() -> AudioDeviceID? { defaultInput().flatMap { hasInput($0) ? $0 : nil } }
+    static func builtIn() -> AudioDeviceID? { all().first { transport($0) == kAudioDeviceTransportTypeBuiltIn && hasInput($0) } }
+    /// The mics a take tries, in order. AVAudioEngine's input unit is shared by the whole process, and once it's stuck
+    /// on a mic that went away (an iPhone's Continuity mic dropping out) every new engine fails on it until a restart;
+    /// naming a live mic unsticks it. Automatic tries the system's choice, then the default by name, then the built-in.
+    static func tries(picked: AudioDeviceID?, current: AudioDeviceID?, builtIn: AudioDeviceID?) -> [AudioDeviceID?] {
+        if picked != nil { return [picked] }
+        var out: [AudioDeviceID?] = [nil]
+        for d in [current, builtIn] { if let d, !out.contains(d) { out.append(d) } }
+        return out
+    }
     static func use(_ dev: AudioDeviceID, on input: AVAudioInputNode) -> Bool {
         guard let unit = input.audioUnit else { return false }
         var id = dev
@@ -1091,10 +1103,10 @@ final class Voice {
         }
         if engine != nil { stopAudio(close: true) }
         // Wake listening fails quietly and tries again later; a take tells the user.
-        let fail = { (code: String) in
-            if self.phase == .wake { self.phase = .idle; self.wakeRetryAt = uptime() + 30; wakeLog("couldn't start (\(code))") } else { emit(["type": "error", "code": code]); self.cancel() }
+        let fail = { (code: String, extra: [String: Any]) in
+            if self.phase == .wake { self.phase = .idle; self.wakeRetryAt = uptime() + 30; wakeLog("couldn't start (\(code))") } else { emit(["type": "error", "code": code].merging(extra) { a, _ in a }); self.cancel() }
         }
-        guard let r = makeRecognizer() else { return fail("unavailable") }
+        guard let r = makeRecognizer() else { return fail("unavailable", [:]) }
         let gain = autoGain, feed = feed
         let ingest = { [weak self] (buffer: AVAudioPCMBuffer) in
             guard let samples = buffer.floatChannelData?[0] else { feed.append(buffer); return }
@@ -1110,24 +1122,32 @@ final class Voice {
         }
         if LiveTest.url != nil { feed.set(r); rec = r; LiveTest.sink = ingest; return }
 
-        let eng = AVAudioEngine()
-        let input = eng.inputNode
-        if let device, !InputDevice.use(device, on: input) { log("couldn't switch to mic \(device)") }
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0 else {
-            r.cancel()
-            return fail("no_input")
-        }
         feed.set(r)
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in ingest(buffer) }
-        do {
-            eng.prepare()
-            try eng.start()
-        } catch {
-            log("engine start failed: \(error)")
+        var started: AVAudioEngine?, problem: String?
+        for dev in InputDevice.tries(picked: device, current: InputDevice.current(), builtIn: InputDevice.builtIn()) {
+            let eng = AVAudioEngine()
+            let input = eng.inputNode
+            if let dev, !InputDevice.use(dev, on: input) { log("couldn't switch to mic \(dev)"); continue }
+            let format = input.outputFormat(forBus: 0)
+            guard format.sampleRate > 0, format.channelCount > 0 else { continue }
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in ingest(buffer) }
+            do {
+                eng.prepare()
+                try eng.start()
+                if dev != device { log("mic opened on device \(dev ?? 0) after the default one failed") }
+                started = eng
+                break
+            } catch {
+                log("engine start failed\(dev.map { " on device \($0)" } ?? ""): \(error)")
+                input.removeTap(onBus: 0)
+                problem = "\(error)"
+            }
+        }
+        guard let eng = started else {
             feed.set(nil)
             r.cancel()
-            return fail("no_input")
+            // A mic that's there but won't open isn't a missing mic.
+            return fail("no_input", problem.map { ["reason": "failed", "message": $0] } ?? [:])
         }
         engine = eng
         engineDevice = device
@@ -1367,6 +1387,76 @@ if args.contains("--test-chord") {
     check("a key pressed after it still does", Voice.isShortcut(extra: false, heldAtArm: [0x00], now: [0x00, 0x01]))
     check("a held key let go isn't a key pressed", !Voice.isShortcut(extra: false, heldAtArm: [0x00], now: []))
     check("an extra ⇧ or ⌘ still counts with a key held", Voice.isShortcut(extra: true, heldAtArm: [0x00], now: [0x00]))
+    exit(bad == 0 ? 0 : 1)
+}
+// --test-spaces checks when a shown panel the window server isn't drawing is built again; exits 1 on a failure.
+if args.contains("--test-spaces") {
+    var bad = 0
+    func check(_ name: String, _ ok: Bool) { print("\(ok ? "ok" : "FAIL") \(name)"); if !ok { bad += 1 } }
+    func step(_ stage: OnScreenStage, _ onScreen: [Bool?], screen: Bool = true) -> (line: String?, next: OnScreenNext) {
+        onScreenStep("pill", stage, onScreen: onScreen, screenAttached: screen)
+    }
+    check("first look, on screen: done", step(.first, [true]) == (nil, .done))
+    check("first look, off screen: a second look before anything else", step(.first, [false]) == (nil, .confirm))
+    check("first look, no answer from the window server: done", step(.first, [nil]) == (nil, .done))
+    check("no display attached (asleep): never built again", step(.first, [false], screen: false) == (nil, .done) && step(.confirm, [false], screen: false) == (nil, .done))
+    check("no panel shown: nothing", step(.first, []) == (nil, .done))
+    check("one panel of two off screen (the drawing layer has one per screen): a second look", step(.first, [true, false]).next == .confirm)
+    // Regression: the pill faded to alpha 1 beside the cursor while the window server said it wasn't on screen.
+    check("off at the second look too: built again, and said", step(.confirm, [false]) == ("pill: not on screen after being shown, building it again", .rebuild))
+    check("on screen at the second look: left alone", step(.confirm, [true]) == (nil, .done))
+    check("no answer at the second look: left alone", step(.confirm, [nil]) == (nil, .done))
+    check("after the rebuild, on screen: said, not built again", step(.rebuilt, [true]) == ("pill: on screen after being built again", .done))
+    check("after the rebuild, still off: said, not built again", step(.rebuilt, [false]) == ("pill: still not on screen after being built again", .done))
+    check("after the rebuild, one on and one unknown: nothing", step(.rebuilt, [true, nil]) == (nil, .done))
+    // The looks themselves, on a made-up clock with made-up window-server answers (no windows): when each look reads, in
+    // ms after the call, and when the panel is built again. shownUntil: hidden from then on; replacedAt: another panel.
+    var clock = 0.0, due: [(at: Double, run: () -> Void)] = []
+    func later(_ d: Double, _ f: @escaping () -> Void) { due.append((clock + d, f)) }
+    func runClock() { while let i = due.indices.min(by: { due[$0].at < due[$1].at }) { let d = due.remove(at: i); clock = d.at; d.run() } }
+    func ms(_ t: [Double]) -> [Int] { t.map { Int(($0 * 1000).rounded()) } }
+    func watch(_ name: String, _ answers: [Bool?], screen: Bool = true, shownUntil: Double = .infinity, replacedAt: Double = .infinity) -> (reads: [Int], rebuilds: [Int]) {
+        clock = 0
+        let a = NSObject(), b = NSObject()
+        var reads: [Double] = [], rebuilds: [Double] = [], left = answers
+        watchOnScreen(name, { clock >= shownUntil ? [] : [(ObjectIdentifier(clock >= replacedAt ? b : a), 1)] },
+                      read: { _ in reads.append(clock); return left.isEmpty ? nil : left.removeFirst() },
+                      screenAttached: { screen }, after: later) { rebuilds.append(clock) }
+        runClock()
+        return (ms(reads), ms(rebuilds))
+    }
+    // Regression: the drawing layer is armed just before the mic starts in the same turn; a turn held past 0.2 s put the
+    // first look ahead of the order-in, and a panel that was fine was built again.
+    check("off at the first look, on 0.1 s later (before the order-in): not built again", watch("race", [false, true]) == ([200, 300], []))
+    check("off at both looks: built again once, at the second, then looked at once more", watch("off", [false, false, true]) == ([200, 300, 500], [300]))
+    check("off, then no answer: not built again", watch("unknown", [false, nil]) == ([200, 300], []))
+    check("still off after the rebuild: never built twice", watch("stuck", [false, false, false]) == ([200, 300, 500], [300]))
+    check("on at the first look: one look only", watch("on", [true]) == ([200], []))
+    check("hidden before the second look: it does nothing", watch("hidden", [false, false], shownUntil: 0.25) == ([200], []))
+    check("replaced before the second look (a display-change rebuild): it does nothing", watch("replaced", [false, false], replacedAt: 0.25) == ([200], []))
+    check("no display attached: one look, nothing built", watch("asleep", [false], screen: false) == ([200], []))
+    clock = 0
+    let shown = NSObject()
+    var earlierReads = 0, earlierRebuilds = 0, newerRebuilds = 0
+    watchOnScreen("again", { [(ObjectIdentifier(shown), 1)] }, read: { _ in earlierReads += 1; return false }, screenAttached: { true }, after: later) { earlierRebuilds += 1 }
+    later(0.25) { watchOnScreen("again", { [(ObjectIdentifier(shown), 1)] }, read: { _ in true }, screenAttached: { true }, after: later) { newerRebuilds += 1 } }
+    runClock()
+    check("a newer show before the second look: the earlier show's look does nothing", earlierReads == 1 && earlierRebuilds == 0 && newerRebuilds == 0)
+    check("window 0 is never a window: no answer", windowOnScreen(0) == nil)
+    check("a negative number: no answer", windowOnScreen(-1) == nil)
+    check("past a window id's range: no answer", windowOnScreen(Int(UInt32.max) + 1) == nil)
+    check("a window number nobody has: no answer", windowOnScreen(0x7fff_fff0) == nil)
+    exit(bad == 0 ? 0 : 1)
+}
+// --test-mics: which mics a take tries when the first won't open; exits 1 on a failure.
+if args.contains("--test-mics") {
+    var bad = 0
+    func check(_ name: String, _ ok: Bool) { print("\(ok ? "ok" : "FAIL") \(name)"); if !ok { bad += 1 } }
+    check("a picked mic is the only one tried", InputDevice.tries(picked: 7, current: 3, builtIn: 4) == [7])
+    check("automatic: the system's choice, then the default by name, then the built-in", InputDevice.tries(picked: nil, current: 3, builtIn: 4) == [nil, 3, 4])
+    check("the default is the built-in: tried once by name", InputDevice.tries(picked: nil, current: 4, builtIn: 4) == [nil, 4])
+    check("no live default: straight to the built-in", InputDevice.tries(picked: nil, current: nil, builtIn: 4) == [nil, 4])
+    check("nothing else to try", InputDevice.tries(picked: nil, current: nil, builtIn: nil) == [nil])
     exit(bad == 0 ? 0 : 1)
 }
 // --test-clicks: which clicks count as changing the screen, with made-up element roles; exits 1 on a failure.

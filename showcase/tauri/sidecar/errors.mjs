@@ -23,7 +23,7 @@ const AREAS = {
     unknown: () => "Sign-in didn't work (E10). Try again.",
     known: [
       ['E11', /cancell?ed|AbortError/i, () => 'Sign-in cancelled.'],
-      ['E12', (e, s) => e?.name === 'ChatGPTPlanNotEnabledError' || /plan use isn't enabled|access_denied/i.test(s), () => "Your ChatGPT plan can't be used here. Use an API key."],
+      ['E12', (e, s) => e?.name === 'ChatGPTPlanNotEnabledError' || /plan use isn't enabled|access_denied/i.test(s), () => 'Allow Use your ChatGPT plan, or use an API key.'],
       ['E13', /invalid_grant/i, (c) => `${c.who} sign-in didn't finish. Try again.`, true],
       ['E14', /invalid_client|different app registration|didn't finish registering/i, (c) => `${c.who} setup didn't finish. Try again.`, true],
       ['E15', /didn't come back from the browser|closed without a callback|No callback URL|Could not complete the sign-in|local sign-in listener/i, (c) => `${c.who} didn't come back from the browser. Try again.`],
@@ -40,12 +40,26 @@ const AREAS = {
     known: [
       ['E21', /Claude Code is updating/i, () => 'Claude Code is updating. Ask me again in a minute.'],
       ['E22', /not logged in|NotLoggedIn|\b401\b|unauthori[sz]ed|invalid_grant|token refresh failed|authentication_error|(?:invalid|incorrect).{0,6}api.?key/i, (c) => `My ${c.who} login stopped working. Sign in again.`, false, 'model'],
+      // Signed in with ChatGPT: each app gets its own weekly share of the plan (Settings > Usage > App limits), and it can
+      // run out after a prompt or two while the plan itself has plenty left. "unavailable" shares the same message.
+      ['E2B', /subscription_sharing_usage_unavailable/i, () => "ChatGPT couldn't check your plan usage. Try again soon."],
+      ['E2C', /subscription_sharing_usage_limit_exceeded|ChatGPT usage limit reached/i, () => "ChatGPT's limit for me is used up. Raise it in ChatGPT.", false, 'chatgpt'],
+      ['E2D', /subscription_sharing_user_not_eligible|ChatGPT plan use isn't available/i, () => "Your ChatGPT plan can't be used here. Use an API key.", false, 'model'],
+      // Gemini's per-minute and daily limits say "check your plan and billing details": a limit, not an empty account (#144).
+      // OpenAI's empty account says the same words with insufficient_quota, so that one stays E23.
+      ['E2E', /(?:free_tier|FreeTier)\S*(?:per_?day|PerDay)|(?:per_?day|PerDay)\S*(?:free_tier|FreeTier)/i, (c) => `${c.who}'s free daily limit is used up. Pick another model.`, false, 'model'],
+      ['E2F', /^(?![^]*insufficient_quota)[^]*check your plan and billing details/i, (c) => `${c.who}'s per-minute limit is hit. Try again in a minute.`],
       ['E23', /insufficient_quota|credit balance|billing|payment required|\b402\b/i, () => 'This account is out of credit. Top up or switch model.', false, 'model'],
       ['E24', /usage.?limit|quota|rate.?limit|\b429\b|too many requests/i, () => "I've hit this model's usage limit. Pick another model.", false, 'model'],
-      ['E25', /context.{0,20}(?:length|window)|prompt is too long|too many tokens|maximum context/i, () => 'This chat got too long. Start a new one.'],
+      ['E25', /context.{0,20}(?:length|window)|prompt is too long|too many tokens|maximum context|exceeds the available context/i, () => 'This chat got too long. Start a new one.'],
       ['E26', /model_not_found|model.{0,40}(?:not found|does not exist|not available|not supported)/i, () => "That model isn't available. Pick another one.", false, 'model'],
+      // A model on this computer (Ollama, LM Studio) that didn't load or ran out of memory (#107). Before E28: Ollama's
+      // "timed out waiting for llama runner to start" isn't the internet.
+      ['E2A', /failed to load model|error loading model|model (?:is )?unloaded|no models? (?:are )?loaded|llama runner|requires more system memory|out of (?:video |device )?memory|insufficient memory/i, () => "The model didn't load. Check its app or pick a smaller one.", false, 'model'],
       ['E27', /overloaded|\b5(?:0[0234]|29)\b|service unavailable|bad gateway|internal server error/i, (c) => `${c.who} is having trouble right now. Try again soon.`],
       ['E28', NET, (c) => `Can't reach ${c.who}. Check your internet.`],
+      // The provider's own filter cut the answer off (Anthropic: "Output blocked by content filtering policy").
+      ['E29', /content.?filter|content (?:management )?policy|blocked by .{0,30}(?:filter|policy)/i, (c) => `${c.who}'s filter stopped that answer. Ask another way.`],
     ],
   },
   key: {

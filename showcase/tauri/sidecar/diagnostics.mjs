@@ -31,6 +31,9 @@ export function redact(text, { home = os.homedir(), user = safeUser() } = {}) {
   return s;
 }
 
+/** Only the keys and tokens: for text that's kept and used again (a learned skill), where an address may be the point. */
+export const redactKeys = (text) => KEYS.slice(0, -1).reduce((s, [re, to]) => s.replace(re, to), String(text));
+
 function safeUser() {
   try { return os.userInfo().username; } catch { return ''; }
 }

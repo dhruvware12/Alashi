@@ -39,6 +39,17 @@ assert.equal(speakable('Hi [landlord name], thanks'), 'Hi landlord name, thanks'
 assert.equal(speakable('Hi [Landlord]'), 'Hi Landlord', 'not a cue: brackets go');
 assert.equal(speakable('✅ 🎬'), '');
 assert.equal(speakable('*waves* hello'), 'waves hello');
+// Maths symbols are said as words (#120); the text on screen keeps them.
+assert.equal(speakable('3² is 9.'), '3 squared is 9.');
+assert.equal(speakable('A cube of side 2 has volume 2³.'), 'A cube of side 2 has volume 2 cubed.');
+assert.equal(speakable('That is 10⁶, and 10⁻³ is small.'), 'That is 10 to the power of 6, and 10 to the power of minus 3 is small.');
+assert.equal(speakable('x^2 + y^10'), 'x squared + y to the power of 10');
+assert.equal(speakable('12 ÷ 4 = 3'), '12 divided by 4 = 3');
+assert.equal(speakable('6 × 7 is 42, and 6*7 too.'), '6 times 7 is 42, and 6 times 7 too.');
+assert.equal(speakable('√16 is 4.'), 'the square root of 16 is 4.');
+assert.equal(speakable('It is 25°C, about 77 °F.'), 'It is 25 degrees Celsius, about 77 degrees Fahrenheit.');
+assert.equal(speakable('π ≈ 3.14'), 'pi is about 3.14');
+assert.equal(speakable('5 − 2 ± 1'), '5 minus 2 plus or minus 1');
 // Blank lines between the spoken answer and the points (the usual card shape), streamed or all at once.
 const card = "Paris looks gray, around 11 degrees. Bring an umbrella.\n\n- Calm, overcast weather.\n- No storm alerts.\n\nSources: [Sortir](https://x.y/a)";
 assert.deepEqual(said([card]), ['Paris looks gray, around 11 degrees.', 'Bring an umbrella.']);

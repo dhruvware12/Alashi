@@ -77,3 +77,16 @@ for (const p of AUTH_PROVIDERS.map((x) => x.value)) {
   assert.equal(fallbackModel([undefined, 'claude-haiku-5-5'], can, runnable), 'claude-haiku-5-5', 'nothing picked yet: the fast one');
   assert.equal(fallbackModel(['gone', 'also-gone'], can, runnable), 'claude-haiku-5-5', 'none can run: the first runnable');
 }
+
+// Regression (#121, #123): on a fresh install ~/.gg didn't exist, so saving a key failed on auth.json.lock (E30).
+{
+  const { openAuth } = await import('../providers.mjs');
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'roamies-auth-'));
+  const auth = openAuth(path.join(dir, 'missing', '.gg', 'auth.json'));
+  await auth.setCredentials('openrouter', { accessToken: 'k', refreshToken: '', expiresAt: Date.now() + 864e5 });
+  assert.ok(await auth.hasProviderAuth('openrouter'), 'the key saved into a folder that did not exist');
+  await fs.rm(dir, { recursive: true, force: true });
+}

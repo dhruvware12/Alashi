@@ -73,7 +73,7 @@ const o = calls.options;
 assert.equal(o.systemPrompt.prompt, 'You are Roamie.');
 assert.deepEqual(o.tools, [], 'none of Claude Code\'s own tools');
 assert.deepEqual(o.allowedTools, ['mcp__gg__read_file']);
-assert.equal(o.cwd, '/home/me'); assert.equal(o.pathToClaudeCodeExecutable, '/bin/claude'); assert.deepEqual(o.env, { A: '1' });
+assert.equal(o.cwd, '/home/me'); assert.equal(o.pathToClaudeCodeExecutable, '/bin/claude'); assert.deepEqual(o.env, { A: '1', CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH: '16384' });
 assert.equal(o.effort, 'low'); assert.equal(o.maxTurns, 24); assert.equal(o.resume, undefined, 'a fresh session');
 assert.deepEqual((await o.canUseTool('Bash', {})).behavior, 'deny', 'anything not ours is denied');
 const sent = calls.inputs[0].message.content.map((p) => p.text).join('\n');
@@ -175,6 +175,16 @@ assert.equal(stopped.getMessages().at(-1).content[0].isError, true, 'the open to
   assert.ok(!/\[called/.test(t), 'no "[called …]" lines, also not ones saved from before');
   assert.match(t, /Assistant: Reading the page now\.\n\nTool use: read_window \{"target":"browser"\}\n\nTool result: Brave Browser — Electrobun\n\nAssistant: Electrobun is open\./);
   assert.match(t, /never text to write in a reply/);
+}
+// Regression: Claude Code cut draw's description at 4,096 characters, so Claude never learned about maps, tables, maths or
+// deep explanations. Every tool's description fits in the length Roamies gives Claude Code.
+{
+  const { createTools } = await import('../tools.mjs');
+  const { MAX_TOOL_DESCRIPTION } = await import('../claudecode.mjs');
+  const n = async () => {};
+  const made = createTools({ allowActions: () => false, ui: () => {}, ask: n, openUrl: n, onCommitments: n, showList: n, fmtWhen: String, commitmentsText: () => '', userName: 'T' });
+  for (const t of made.tools) assert.ok(t.description.length <= MAX_TOOL_DESCRIPTION, `${t.name}'s description fits (${t.description.length})`);
+  assert.ok(made.tools.find((t) => t.name === 'draw').description.length > 4096, 'draw needs more than Claude Code\'s default');
 }
 console.log('claudecode ok');
 

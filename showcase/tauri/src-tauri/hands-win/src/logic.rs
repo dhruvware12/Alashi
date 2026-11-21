@@ -329,8 +329,24 @@ pub fn risky(s: &str) -> bool {
 
 /// The waits (by index) that come right after a click or key, so they can end once the page has reacted.
 pub fn react_waits(dos: &[&str]) -> Vec<usize> {
-    let reacts = ["click", "click_text", "press_button", "key", "click_at", "choose"];
+    let reacts = ["click", "click_text", "press_button", "key", "click_at", "choose", "hover"];
     (1..dos.len()).filter(|&i| dos[i] == "wait" && reacts.contains(&dos[i - 1])).collect()
+}
+
+/// The control labels that showed up after a hover (a card's ⋯ menu): new ones only, each once, at most 8.
+pub fn revealed(before: &[String], after: &[String]) -> Vec<String> {
+    let had: std::collections::HashSet<&str> = before.iter().map(|l| l.trim()).collect();
+    let mut out: Vec<String> = Vec::new();
+    for l in after.iter().map(|l| l.trim()) {
+        if l.is_empty() || had.contains(l) || out.iter().any(|o| o == l) {
+            continue;
+        }
+        out.push(l.to_string());
+        if out.len() == 8 {
+            break;
+        }
+    }
+    out
 }
 
 /// Of many matches (every post's "Reply" button), the one that belongs with the anchor text: the first one at or
@@ -721,6 +737,7 @@ pub fn ocr_matches(words: &[(String, Rect)], q: &str) -> Vec<Rect> {
 // ---------- checks shared by `cargo test` and `--self-test` ----------
 
 pub fn self_test() -> Vec<(&'static str, bool)> {
+    let strs = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<String>>();
     let win = |id: i64, title: &str, w: f64, h: f64| Win { id, pid: 1, app: "App".into(), exe: "app".into(), title: title.into(), r: Rect::new(0.0, 0.0, w, h) };
     let mw = |v: Vec<Win>| main_window(&v).map(|w| w.id);
     let pw = |id: i64, pid: u32| Win { id, pid, ..Default::default() };
@@ -782,6 +799,10 @@ pub fn self_test() -> Vec<(&'static str, bool)> {
         ("wait at the end after a key can end early", react_waits(&["fill", "key", "wait"]) == vec![2]),
         ("a wait first or after typing runs in full", react_waits(&["wait", "type", "wait", "read_window"]).is_empty()),
         ("each wait after a click counts", react_waits(&["click_at", "wait", "click_at", "wait", "take_screenshot"]) == vec![1, 3]),
+        ("a wait after a hover can end early", react_waits(&["hover", "wait"]) == vec![1]),
+        ("a hover names the controls that appeared", revealed(&strs(&["Q3 report", "Home"]), &strs(&["Q3 report", "More options", "Home", "Share"])) == strs(&["More options", "Share"])),
+        ("blank and repeated new labels are named once", revealed(&strs(&["Home"]), &strs(&["", "Share", " Share ", "Home"])) == strs(&["Share"])),
+        ("at most 8 are named", revealed(&[], &(1..=12).map(|i| format!("Item {i}")).collect::<Vec<_>>()).len() == 8),
         ("risky labels need a yes", risky("Delete account") && risky("Place your order") && risky("Cancel my subscription") && risky("Löschen") && risky("削除する")),
         ("everyday labels don't", !risky("Save") && !risky("Undelete") && !risky("Sender name") && !risky("Cancel") && !risky("Payment details")),
         ("cmd is Ctrl on Windows", parse_combo("cmd+a") == Some((MOD_CTRL, 0x41)) && parse_combo("Cmd + S") == Some((MOD_CTRL, 0x53))),

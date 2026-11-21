@@ -76,7 +76,7 @@ assert.match(typed.raw, /reason=invalid_grant status=400 detail=Invalid authoriz
 const fetchFailed = Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('getaddrinfo ENOTFOUND auth.openai.com'), { code: 'ENOTFOUND' }) });
 const planOff = Object.assign(new Error("ChatGPT plan use isn't enabled for GG Coder. Allow Use your ChatGPT plan, or add an OpenAI API key."), { name: 'ChatGPTPlanNotEnabledError' });
 const CASES = [
-  ['sign-in', planOff, 'ChatGPT', "Your ChatGPT plan can't be used here. Use an API key."],
+  ['sign-in', planOff, 'ChatGPT', 'Allow Use your ChatGPT plan, or use an API key.'],
   ['sign-in', fetchFailed, 'ChatGPT', "Can't reach ChatGPT. Check your internet."],
   ['sign-in', new Error("ChatGPT sign-in didn't come back from the browser. Try again."), 'ChatGPT', "ChatGPT didn't come back from the browser. Try again."],
   ['sign-in', new Error('Sign-in listener closed without a callback.'), 'ChatGPT', "ChatGPT didn't come back from the browser. Try again."],
@@ -96,6 +96,14 @@ const CASES = [
   ['reply', fetchFailed, 'Kimi (Moonshot)', "Can't reach Kimi (Moonshot). Check your internet."],
   ['reply', new Error('Claude Code is updating. Ask me again in a minute.'), 'Anthropic', 'Claude Code is updating. Ask me again in a minute.'],
   ['reply', new Error("Claude Code didn't update: fetch failed"), 'Anthropic', "Can't reach Anthropic. Check your internet."],
+  ['reply', new Error('API Error: Output blocked by content filtering policy'), 'Anthropic', "Anthropic's filter stopped that answer. Ask another way."],
+  ['reply', new Error('finish_reason: content_filter'), 'OpenAI', "OpenAI's filter stopped that answer. Ask another way."],
+  // #107: a model on this computer that didn't load was "Something went wrong (E20)", or "check your internet".
+  ['reply', new Error('400 No models loaded. Please load a model in the developer page or use the `lms load` command.'), 'Local', "The model didn't load. Check its app or pick a smaller one."],
+  ['reply', new Error('500 model requires more system memory (9.1 GiB) than is available (4.2 GiB)'), 'Local', "The model didn't load. Check its app or pick a smaller one."],
+  ['reply', new Error('500 timed out waiting for llama runner to start - progress 0.00'), 'Local', "The model didn't load. Check its app or pick a smaller one."],
+  ['reply', new Error('CUDA error: out of memory'), 'Local', "The model didn't load. Check its app or pick a smaller one."],
+  ['reply', new Error('400 the request exceeds the available context size, try increasing it'), 'Local', 'This chat got too long. Start a new one.'],
   ['key', new Error('keychain unavailable'), 'x', "Keychain didn't save the key. Try again.", 'Keychain'],
   ['key', new Error("the keyring didn't answer (Cannot autolaunch D-Bus); a keyring app such as GNOME Keyring or KWallet needs to be running"), 'x', "Keyring didn't save the key. Try again.", 'keyring'],
   ['key', new Error('Windows could not protect the key'), 'x', "The key didn't save safely. Try again."],
@@ -145,6 +153,32 @@ assert.match(detailsText(undefined), /^Roamies error \? \(\?\)/, 'nothing to rep
 {
   const side = (await import('node:fs')).readFileSync(new URL('../sidekick.mjs', import.meta.url), 'utf8');
   assert.deepEqual(side.split('\n').flatMap((l, i) => (/\b(const|let|var)\s+problem\b/.test(l) ? [i + 1] : [])), [], 'nothing in sidekick.mjs hides problem()');
+}
+
+// Regression: signed in with ChatGPT, replies stopped after a prompt or two with "usage limit, pick another model",
+// while the plan had plenty left: ChatGPT's own cap for the app (Settings > Usage > App limits) was used up.
+{
+  const { ProviderError } = await import('@kenkaiiii/gg-ai');
+  const plan = (code, status) => new ProviderError('openai', 'ChatGPT usage limit reached', { statusCode: status, cause: { code, message: 'Usage limit reached for this app.' } });
+  const used = explain('reply', plan('subscription_sharing_usage_limit_exceeded', 429), { who: 'OpenAI' });
+  assert.deepEqual([used.code, used.where], ['E2C', 'chatgpt'], 'the app limit points to ChatGPT, not the Model page');
+  assert.match(used.text, /Raise it in ChatGPT/);
+  assert.equal(explain('reply', new Error('ChatGPT usage limit reached')).code, 'E2C', 'by its message alone too');
+  assert.equal(explain('reply', plan('subscription_sharing_usage_unavailable', 503)).code, 'E2B', "couldn't check is not used up");
+  const no = explain('reply', new ProviderError('openai', "ChatGPT plan use isn't available for this account or workspace.", { statusCode: 403, cause: { code: 'subscription_sharing_user_not_eligible' } }));
+  assert.deepEqual([no.code, no.where], ['E2D', 'model']);
+  assert.equal(explain('reply', new Error('429 Too Many Requests: rate limit reached')).code, 'E24', 'other limits are unchanged');
+  // Regression (#144): Gemini's free-tier limits mention billing and were shown as an account out of credit.
+  const gem = (metric) => new Error(`You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.\n* Quota exceeded for metric: generativelanguage.googleapis.com/${metric}, limit: 250000\nPlease retry in 37.5s. status=429`);
+  const minute = explain('reply', gem('generate_content_free_tier_input_token_count'), { who: 'Gemini' });
+  assert.equal(minute.code, 'E2F'); assert.match(minute.text, /per-minute limit/); assert.doesNotMatch(minute.text, /credit/);
+  const day = explain('reply', new Error('You exceeded your current quota, please check your plan and billing details. quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier'), { who: 'Gemini' });
+  assert.deepEqual([day.code, day.where], ['E2E', 'model']); assert.match(day.text, /daily limit/);
+  assert.equal(explain('reply', new Error('Your credit balance is too low')).code, 'E23', 'a real empty account is still out of credit');
+  assert.equal(explain('reply', new Error('429 You exceeded your current quota, please check your plan and billing details. code=insufficient_quota')).code, 'E23', "and OpenAI's, in the same words");
+  const side = (await import('node:fs')).readFileSync(new URL('../sidekick.mjs', import.meta.url), 'utf8');
+  assert.match(side, /p\.where === 'chatgpt' \? `\$\{p\.text\} \$\{chatGPTUsageHelp\(\)\}`/, 'the reply says how to raise it');
+  assert.match(side, /openUrl\(CHATGPT_USAGE_URL\)/, "and opens ChatGPT's usage settings");
 }
 
 console.log('errors tests: passed');

@@ -175,7 +175,7 @@ assert.deepEqual(checkFolder('~/Cloud', TMP), { ok: true, dir: path.join(TMP, 'C
 {
   const fresh = async (name, files = {}) => {
     process.env.ROAMIES_DATA_DIR = path.join(TMP, name);
-    const dir = path.join(TMP, name, 'sidekick');
+    const dir = path.join(TMP, name, 'Roamies', 'Data');
     fs.mkdirSync(dir, { recursive: true });
     for (const [n, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, n), text);
     return (await import(`../store.mjs?${name}`)).syncSnapshot();

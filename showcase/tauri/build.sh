@@ -15,17 +15,24 @@ TARGET=""; prev=""; for a in "$@"; do [ "$prev" = "--target" ] && TARGET="$a"; p
 # builds its Swift twins in build.rs. Linux has the voice helper only (the same Rust one as Windows).
 # Always optimised: a debug voice build is far too slow at reading speech.
 TRIPLE="${TARGET:-$(rustc -vV | sed -n 's/^host: //p')}"
+# The voice helper loads Microsoft's ONNX Runtime, shipped beside it (fetch-onnxruntime.sh says why).
+case "$TRIPLE" in *-windows-*|*-linux-*) ./fetch-onnxruntime.sh "$TRIPLE" ;; esac
 case "$TRIPLE" in
   *-windows-*)
     mkdir -p src-tauri/binaries
+    # ONNX Runtime in the voice helper needs the Visual C++ runtime, which a fresh Windows can lack (#121): it's
+    # installed beside the helpers (app-local, as Microsoft allows), copied from this build machine.
+    mkdir -p src-tauri/vcruntime
+    sys32="$(cygpath -u "${SYSTEMROOT:-C:\\Windows}")/System32"
+    for dll in msvcp140.dll msvcp140_1.dll vcruntime140.dll vcruntime140_1.dll; do cp "$sys32/$dll" src-tauri/vcruntime/; done
     for h in voice hands; do
       cargo build --release --locked --manifest-path "src-tauri/$h-win/Cargo.toml" --target "$TRIPLE"
-      cp "src-tauri/$h-win/target/$TRIPLE/release/roamies-$h.exe" "src-tauri/binaries/roamies-$h-$TRIPLE.exe"
+      cp "src-tauri/$h-win/target/$TRIPLE/release/alashi-$h.exe" "src-tauri/binaries/alashi-$h-$TRIPLE.exe"
     done ;;
   *-linux-*)
     mkdir -p src-tauri/binaries
     cargo build --release --locked --manifest-path src-tauri/voice-win/Cargo.toml --target "$TRIPLE"
-    cp "src-tauri/voice-win/target/$TRIPLE/release/roamies-voice" "src-tauri/binaries/roamies-voice-$TRIPLE" ;;
+    cp "src-tauri/voice-win/target/$TRIPLE/release/alashi-voice" "src-tauri/binaries/alashi-voice-$TRIPLE" ;;
 esac
 cd src-tauri
 # macOS signing: APPLE_SIGNING_IDENTITY if set, else the first Developer ID Application certificate in

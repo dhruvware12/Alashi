@@ -29,12 +29,12 @@ export function withWords(message, userName, words) {
  * 'job' (a heavy job set to this model), 'named' (they asked for it by name), 'limit' (the model before it hit its
  * usage limit, `until` = when it resets, so it opens its reply by saying so), 'back' (the default is free again).
  */
-export function handoffNote({ userName, assistant, reason = 'job', from, kind, words, untilText, because }) {
+export function handoffNote({ userName, assistant, reason = 'job', from, kind, words, untilText, because, fix }) {
   const q = exactWords(words), theirs = q ? `${userName}'s exact words, quoted verbatim: ${q}. ` : '';
   const rule = "Do exactly what they asked, in the sense of their own words: don't reword it, add tasks or ask for what they already said.";
   if (reason === 'back') return `(Heads up, not from ${userName}: ${from} is available again, so you're back on it. Mention it in a few words only if it fits.)`;
   if (reason === 'unavailable') return `(Handoff, not from ${userName}: ${from} isn't available right now${because ? ` (${because})` : ''}${untilText ? `; it'll be tried again around ${untilText}` : ''}, so you're taking over as ${assistant}, with the conversation so far. ${theirs}${rule} Open your reply with one short sentence, in character, saying ${from} isn't available and you're covering; then do what they asked.)`;
-  if (reason === 'limit') return `(Handoff, not from ${userName}: ${from} has reached its usage limit${untilText ? ` and resets about ${untilText}` : ''}, so you're taking over as ${assistant}, with the conversation so far. ${theirs}${rule} Open your reply with one short sentence, in character, saying ${from} is at its limit and you're covering${untilText ? ` until about ${untilText}` : ' for now'}; then do what they asked.)`;
+  if (reason === 'limit') return `(Handoff, not from ${userName}: ${from} has reached its usage limit${untilText ? ` and resets about ${untilText}` : ''}, so you're taking over as ${assistant}, with the conversation so far. ${theirs}${rule} Open your reply with one short sentence, in character, saying ${from} is at its limit and you're covering${untilText ? ` until about ${untilText}` : ' for now'}${fix ? `, and pass on in your own words how to fix it: ${fix}` : ''}; then do what they asked.)`;
   if (reason === 'named') return `(Handoff, not from ${userName}: ${from} was chatting with them as ${assistant}, and they asked for you by name to take this. ${theirs}${rule} Answer as ${assistant}, in character, as usual.)`;
   return `(Handoff, not from ${userName}: ${from} was chatting with them as ${assistant} and passed this ${kind} job to you, because you're the model set up for it. ${theirs}${rule} Answer as ${assistant}, in character, as usual.)`;
 }

@@ -13,7 +13,9 @@ Roamies is licensed under [AGPL-3.0](LICENSE). It builds on the components below
 | [Doto](https://github.com/oliverlalan/Doto), [Martian Mono](https://github.com/evilmartians/mono) and [Readex Pro](https://github.com/ThomasJockin/readexpro) (its Arabic letters, for replies in Arabic) fonts | text in the app | SIL Open Font License 1.1, texts in `showcase/onboarding/fonts/` |
 | [Natural Earth](https://www.naturalearthdata.com) 1:110m countries | country outlines for map cards (`showcase/roamies/world.js`) and their names (`showcase/tauri/sidecar/countries.mjs`) | Public domain |
 | [NVIDIA Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), [ONNX export by istupakov](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx) | Windows speech model, downloaded at setup, not bundled | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| Microsoft Visual C++ runtime (`msvcp140.dll`, `msvcp140_1.dll`, `vcruntime140.dll`, `vcruntime140_1.dll`) | installed beside the Windows helpers, which need it | Microsoft Visual Studio redistributable code terms |
 | [parakeet-rs](https://github.com/altunenes/parakeet-rs) 0.4.3 | runs the speech model in the Windows voice helper | MIT OR Apache-2.0 |
+| [ONNX Runtime](https://onnxruntime.ai) 1.31.0, Microsoft's build (`onnxruntime.dll`, `libonnxruntime.so`, from the `Microsoft.ML.OnnxRuntime` NuGet package; version in `showcase/tauri/fetch-onnxruntime.sh`) | bundled on Windows and Linux; the voice helper loads it to run the speech model | MIT, © Microsoft Corporation |
 
 ## Full dependency list
 

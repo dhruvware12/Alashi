@@ -338,6 +338,9 @@ export function closeSpare() {
   clearTimeout(s.timer);
   s.warm.then((w) => w?.close()).catch(() => {});
 }
+// Claude Code cuts each tool's description at 4,096 characters unless told otherwise, and draw's is about twice that:
+// Claude never saw maps, tables, maths or deep explanations. Ours fit in this.
+export const MAX_TOOL_DESCRIPTION = 16_384;
 // Everything a query is started with; `link` carries what's only known once a request takes it.
 function sdkOptions(o, resume, link) {
   const bridge = createToolBridge({ tools: o.tools ?? [], signal: () => link.signal, onEvent: (event) => link.onEvent?.(event) });
@@ -355,7 +358,7 @@ function sdkOptions(o, resume, link) {
     canUseTool: async (name, toolInput) => (name.startsWith(TOOL_PREFIX) ? { behavior: 'allow', updatedInput: toolInput } : { behavior: 'deny', message: `${name} is not available in Roamies.` }),
     includePartialMessages: true,
     pathToClaudeCodeExecutable: o.executable,
-    env: o.env,
+    env: { ...(o.env ?? process.env), CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH: String(MAX_TOOL_DESCRIPTION) },
     abortController,
     stderr: (d) => link.stderr?.(d),
     ...(resume ? { resume } : {}),

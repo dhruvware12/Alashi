@@ -111,6 +111,23 @@ export class CueFilter {
   flush() { const h = this.held; this.held = ''; return h; }
 }
 
+const SUPERSCRIPT = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+const power = (minus, n) => (minus ? ` to the power of minus ${n} ` : n === '2' ? ' squared ' : n === '3' ? ' cubed ' : ` to the power of ${n} `);
+const MATH_WORDS = [
+  [/(?<=\d)\s*°\s*C\b/g, ' degrees Celsius'], [/(?<=\d)\s*°\s*F\b/g, ' degrees Fahrenheit'], [/°/g, ' degrees'],
+  [/÷/g, ' divided by '], [/[×✕]/g, ' times '], [/(?<=\d)\s*[*·⋅]\s*(?=\d)/g, ' times '], [/−/g, ' minus '],
+  [/±/g, ' plus or minus '], [/∛/g, ' the cube root of '], [/√/g, ' the square root of '],
+  [/≈/g, ' is about '], [/≠/g, ' is not equal to '], [/≤/g, ' is less than or equal to '], [/≥/g, ' is greater than or equal to '],
+  [/π/g, ' pi '], [/∞/g, ' infinity '], [/½/g, ' one half '], [/¼/g, ' one quarter '], [/¾/g, ' three quarters '],
+];
+// Voices read raw maths symbols oddly (3² or ÷), so they are said as words (#120).
+function mathWords(s) {
+  s = s.replace(/(⁻)?([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, (_, m, d) => power(m, [...d].map((c) => SUPERSCRIPT[c]).join('')))
+    .replace(/(?<=[\p{L}\p{N})])\^(-)?(\d+)/gu, (_, m, n) => power(m, n));
+  for (const [re, word] of MATH_WORDS) s = s.replace(re, word);
+  return s;
+}
+
 export function speakable(text) {
   let s = String(text ?? '');
   s = s.replace(/\[([^\]]*)\]\((?:https?:|mailto:)[^)]*\)/g, '$1') // [name](url) → name
@@ -119,6 +136,7 @@ export function speakable(text) {
     .replace(/(\*\*|__|\*|~~)(?=\S)([^*~]*?\S)\1/g, '$2') // bold, italic, strike
     .replace(/(?:^|\s)(?:~|\/)?(?:[\w.-]+\/){2,}[\w-]*(?:\.\w+)*/g, ' ') // file paths (the sentence's full stop stays)
     .replace(/\[([^\]]{1,40})\]/g, (m, inner, at, all) => (IS_CUE.test(m) || (LOOSE.test(m) && SENTENCE_START.test(all.slice(0, at))) ? m.toLowerCase() : inner)) // voice cues stay; [placeholders] lose their brackets (Fish would act them out)
+    .replace(/[\s\S]+/, mathWords)
     .replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}\u{20E3}]/gu, '')
     .replace(/\(\s*\)|\[\s*\]/g, '')
     .replace(/\s+([,.!?;:])/g, '$1')

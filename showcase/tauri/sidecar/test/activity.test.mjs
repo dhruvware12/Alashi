@@ -54,3 +54,9 @@ a.start('5', 'web_search', {}); a.stopped(); assert.equal(a.doing(), null);
   assert.deepEqual(b.stopped(), [], 'nothing left after');
 }
 console.log('activity tests: passed');
+// A fact kept from their feedback shows in Recent, so it can be undone on the Memory page.
+{
+  const c = createActivity();
+  c.noted('Ken uses Firefox, not Chrome, for everything to do with work and the team calendars');
+  assert.equal(c.recent[0].text, 'Noted: Ken uses Firefox, not Chrome, for everything to do with wor…');
+}

@@ -31,6 +31,18 @@ assert.equal(fitted['local/ollama/qwen3.5:4b'].contextWindow, 32768);
 assert.equal(fitted['local/ollama/qwen3.5:4b'].maxOutputTokens, 4096);
 assert.equal(fitted['local/ollama/gemma4:12b'].contextWindow, 32768);
 
+// Regression (#150): a server the user added that lists only model ids (NVIDIA NIM) got gg-core's 4k guess, so each
+// request was cut to about 2k tokens and every earlier turn was dropped. It gets Roamies' minimum; a reported window
+// stays, and Ollama still waits to be measured.
+const nim = serverList([{ id: 'nvidia', label: 'NVIDIA', baseUrl: 'https://integrate.api.nvidia.com/v1' }]).at(-1);
+const hosted = Object.fromEntries(localModels([{ endpoint: nim, reachable: true, models: [
+  model('nvidia/nemotron-3-nano-omni-30b-a3b-reasoning', { endpointId: 'nvidia' }),
+  model('served-8k', { endpointId: 'nvidia', contextWindow: 8192, contextWindowKnown: true }),
+] }]).map((m) => [m.id, m]));
+assert.equal(hosted['local/nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'].contextWindow, MIN_CONTEXT);
+assert.equal(hosted['local/nvidia/served-8k'].contextWindow, 8192);
+assert.equal(localModels([probe]).find((m) => m.id === 'local/ollama/qwen3.5:4b').contextWindow, 4096);
+
 // Connecting registers the models; the credential is saved only when Ollama answered.
 const saved = [];
 const auth = { setLocalEndpoint: async (id, baseUrl) => saved.push([id, baseUrl]), getCredentials: async () => undefined };
@@ -41,11 +53,15 @@ const up = await connectLocal(auth, OLLAMA, { save: true, windows: measured, pro
 assert.equal(up.ok, true);
 assert.equal(up.all, 4);
 assert.deepEqual(saved, [['ollama', 'http://127.0.0.1:11434/v1']]);
-assert.deepEqual(getModelsForProvider('local').map((m) => m.id), ['local/ollama/qwen3.5:4b', 'local/ollama/gemma4:12b']);
+assert.deepEqual(up.models.map((m) => m.id), ['local/ollama/qwen3.5:4b', 'local/ollama/gemma4:12b'], 'the ones it can talk through');
+assert.equal(up.text, 1, 'and one that can only be a subagent');
+// A model that uses tools but can't see images is registered too, for subagents (#152); one without tools isn't.
+assert.deepEqual(getModelsForProvider('local').map((m) => m.id), ['local/ollama/qwen3.5:4b', 'local/ollama/llama3:8b', 'local/ollama/gemma4:12b']);
+assert.equal(getModel('local/ollama/llama3:8b').supportsImages, false);
 assert.equal(getModel('local/ollama/qwen3.5:4b').contextWindow, 32768);
 assert.deepEqual(getAuthStorageKeys('local', 'local/ollama/qwen3.5:4b'), ['local:ollama'], 'the model runs on the saved Ollama credential');
 await connectLocal(auth, OLLAMA, { probe: async () => ({ ...probe, models: probe.models.slice(1) }) });
-assert.deepEqual(getModelsForProvider('local').map((m) => m.id), ['local/ollama/gemma4:12b'], 'a removed model leaves the menu');
+assert.deepEqual(getModelsForProvider('local').map((m) => m.id), ['local/ollama/llama3:8b', 'local/ollama/gemma4:12b'], 'a removed model leaves the menu');
 assert.equal(saved.length, 1, 'a rescan saves nothing');
 
 // Too small a window gets a plain warning with the fix.

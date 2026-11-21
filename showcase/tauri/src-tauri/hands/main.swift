@@ -883,8 +883,19 @@ func ocrFind(_ win: Win?, _ needle: String, all: Bool) -> [[String: Any]] {
 
 /// The waits (by index) that come right after a click or key, so they can end once the page has reacted.
 func reactWaits(_ dos: [String]) -> Set<Int> {
-    let reacts: Set<String> = ["click", "click_text", "press_button", "key", "click_at", "choose"]
+    let reacts: Set<String> = ["click", "click_text", "press_button", "key", "click_at", "choose", "hover"]
     return Set(dos.indices.filter { $0 >= 1 && dos[$0] == "wait" && reacts.contains(dos[$0 - 1]) })
+}
+
+/// The control labels that showed up after a hover (a card's ⋯ menu): new ones only, each once, at most 8.
+func revealed(before: [String], after: [String]) -> [String] {
+    let had = Set(before.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+    var seen = Set<String>(), out: [String] = []
+    for l in after.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where !l.isEmpty && !had.contains(l) && !seen.contains(l) {
+        seen.insert(l); out.append(l)
+        if out.count == 8 { break }
+    }
+    return out
 }
 
 func settle(_ app: AXUIElement, _ w: Win) -> [(AXUIElement, [String: Any])] {
@@ -1471,6 +1482,11 @@ case "--self-test":
     check("wait at the end after a key can end early", reactWaits(["fill", "key", "wait"]) == [2])
     check("a wait first or after typing runs in full", reactWaits(["wait", "type", "wait", "read_window"]).isEmpty)
     check("each wait after a click counts", reactWaits(["click_at", "wait", "click_at", "wait", "take_screenshot"]) == [1, 3])
+    check("a wait after a hover can end early", reactWaits(["hover", "wait"]) == [1])
+    // A hover reports what it revealed (a card's ⋯ menu), so the next step knows the button's real name.
+    check("a hover names the controls that appeared", revealed(before: ["Q3 report", "Home"], after: ["Q3 report", "More options", "Home", "Share"]) == ["More options", "Share"])
+    check("blank and repeated new labels are named once", revealed(before: ["Home"], after: ["", "Share", " Share ", "Home"]) == ["Share"])
+    check("at most 8 are named", revealed(before: [], after: (1...12).map { "Item \($0)" }).count == 8)
     // A guess fitted to the pixels: a dark page with a light square at 30,10 (20×20) and a smaller one at 70,40 (6×6).
     func canvas(_ w: Int, _ h: Int, _ rects: [CGRect]) -> [UInt8] {
         var b = [UInt8](repeating: 0, count: w * h * 4)
@@ -1727,6 +1743,19 @@ case "act":
         guard let id = s["id"] as? Int, id >= 1, id <= controls.count else { return nil }
         return controls[id - 1]
     }
+    // Of many matches for q (a "Reply" under every post), the one that goes with the near text, scrolled into view.
+    func nearHit(_ i: Int, _ q: String, _ near: String) -> (AXUIElement, [String: Any])? {
+        guard let a = anchorFrame(app, w, near) else {
+            out(["ok": false, "error": "Step \(i + 1): no text \"\(near)\" on this page to find \"\(q)\" near.", "done": done])
+        }
+        let all = findTextEls(app, w, q, hidden: true, limit: 200).filter { clickMatch($0.1) }
+        let best = all.first?.1["match"] as? String
+        let hit = nearestAfter(a, all.filter { ($0.1["match"] as? String) == best })
+        if let (e, _) = hit, let f = frame(e), !CGRect(x: w.x, y: w.y, width: w.w, height: w.h).contains(CGPoint(x: f.midX, y: f.midY)) {
+            AXUIElementPerformAction(e, "AXScrollToVisible" as CFString); Thread.sleep(forTimeInterval: 0.3)
+        }
+        return hit
+    }
     // A wait right after a click or key ("click Sign in, wait 2, screenshot") is there for the page to react. It ends
     // as soon as the page has changed from how it was before that action and has held still; if nothing changes it
     // waits the full time, as before.
@@ -1765,7 +1794,7 @@ case "act":
             out(["ok": false, "error": "Blocked for safety: \(name) came to the front, and I never type or click in it.", "done": done])
         }
         // Raw keys and typing land in the front app: if another app took over, stop instead of typing into it.
-        if ["key", "type", "click_at"].contains(what), frontPid() != w.pid, !bringToFront(w, app) {
+        if ["key", "type", "click_at", "hover"].contains(what), frontPid() != w.pid, !bringToFront(w, app) {
             let other = NSWorkspace.shared.frontmostApplication?.localizedName ?? "another app"
             out(["ok": false, "error": "Step \(i + 1): \(other) is in front instead of \(w.app), so I stopped before typing into the wrong app.", "done": done])
         }
@@ -1816,16 +1845,7 @@ case "act":
             if let box = boxes.first(where: { inWebPage($0.0) }) {
                 hit = (box.0, ["text": box.1["label"] ?? q])
             } else if let near = s["near"] as? String, !near.isEmpty {
-                // Many matches (a "Reply" under every post): the one that goes with the near text.
-                guard let a = anchorFrame(app, w, near) else {
-                    out(["ok": false, "error": "Step \(i + 1): no text \"\(near)\" on this page to find \"\(q)\" near.", "done": done])
-                }
-                let all = findTextEls(app, w, q, hidden: true, limit: 200).filter { clickMatch($0.1) }
-                let best = all.first?.1["match"] as? String
-                hit = nearestAfter(a, all.filter { ($0.1["match"] as? String) == best })
-                if let (e, _) = hit, let f = frame(e), !CGRect(x: w.x, y: w.y, width: w.w, height: w.h).contains(CGPoint(x: f.midX, y: f.midY)) {
-                    AXUIElementPerformAction(e, "AXScrollToVisible" as CFString); Thread.sleep(forTimeInterval: 0.3)
-                }
+                hit = nearHit(i, q, near)
             } else {
                 hit = findTextEls(app, w, q).first(where: { clickMatch($0.1) })
                 if let box = boxes.first, hit == nil || !inWebPage(hit!.0) { hit = (box.0, ["text": box.1["label"] ?? q]) }
@@ -2053,6 +2073,45 @@ case "act":
             emitStep(i, "click_at", nil, at: global ? CGPoint(x: x, y: y) : CGPoint(x: w.x + x, y: w.y + y))
             click(global ? CGPoint(x: x, y: y) : CGPoint(x: w.x + x, y: w.y + y)); done.append("clicked at \(Int(x)),\(Int(y))")
             clickedSpot = true
+        case "hover":
+            // Rests the pointer on something without clicking, so controls that only show on hover (a card's ⋯ menu)
+            // appear. Pages only react to a real pointer, so in the background it borrows the cursor until the run ends.
+            let q = s["text"] as? String ?? ""
+            var spot: CGPoint?, label = q, onto: AXUIElement?
+            if let x = s["x"] as? Double, let y = s["y"] as? Double {
+                let global = s["global"] as? Bool ?? false
+                spot = global ? CGPoint(x: x, y: y) : CGPoint(x: w.x + x, y: w.y + y)
+                label = "\(Int(x)),\(Int(y))"
+            } else if s["id"] != nil {
+                guard let (e, info) = el(s) else { out(["ok": false, "error": "Step \(i + 1): no control with id \(s["id"] ?? "?"). Call read_window again.", "done": done]) }
+                onto = e; label = (info["label"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "control \(info["id"] ?? "")"
+            } else if !q.isEmpty {
+                var hit: (AXUIElement, [String: Any])?
+                if let near = s["near"] as? String, !near.isEmpty { hit = nearHit(i, q, near) } else {
+                    hit = findTextEls(app, w, q).first(where: { clickMatch($0.1) })
+                    if hit == nil, scrollToText(app, w, q) { hit = findTextEls(app, w, q).first(where: { clickMatch($0.1) }) }
+                }
+                guard let (e, info) = hit else {
+                    out(["ok": false, "error": "Step \(i + 1): no visible text \"\(q)\" in \(w.app). Check the exact words with a screenshot or read_window.", "done": done])
+                }
+                onto = e; label = (info["text"] as? String) ?? q
+            }
+            if let e = onto, let f = frame(e) { spot = CGPoint(x: f.midX, y: f.midY) }
+            guard let p = spot else { out(["ok": false, "error": "Step \(i + 1): hover needs text (with near to pick one of many), an id, or x and y.", "done": done]) }
+            if let under = windows().first(where: { CGRect(x: $0.x, y: $0.y, width: $0.w, height: $0.h).contains(p) }), let name = handsOff(under.pid) {
+                out(["ok": false, "error": "Blocked for safety: that spot is on \(name), and I never click in it.", "done": done])
+            }
+            emitStep(i, "hover", onto, at: p, label: label)
+            let before = walk(app, w).map { ($0.1["label"] as? String) ?? "" }
+            // Two hops, so the page sees the pointer come in (mouseenter) rather than appear on the spot.
+            let moved = withRealCursor { () -> Bool in
+                moveTo(CGPoint(x: p.x - 6, y: p.y - 6)); Thread.sleep(forTimeInterval: 0.06); moveTo(p); return true
+            }
+            guard moved != nil else { break }
+            Thread.sleep(forTimeInterval: 0.4)
+            controls = settle(app, w)
+            let shown = revealed(before: before, after: controls.map { ($0.1["label"] as? String) ?? "" })
+            done.append("hovered \"\(label)\"" + (shown.isEmpty ? " (no new controls showed up; a screenshot shows what changed)" : " (now showing: \(shown.joined(separator: ", ")))"))
         case "wait":
             let secs = min(5, (s["seconds"] as? Double) ?? 0.5)
             if let before = sigBefore, earlyWaits.contains(i) {
@@ -2074,7 +2133,7 @@ case "act":
         }
     }
     // A click or key may have changed the page: hand back what's there now, so no read_window round trip is needed.
-    let changing = steps.contains { ["click", "click_text", "press_button", "key", "click_at", "fill", "choose", "scroll", "set"].contains($0["do"] as? String ?? "") }
+    let changing = steps.contains { ["click", "click_text", "press_button", "key", "click_at", "fill", "choose", "scroll", "set", "hover"].contains($0["do"] as? String ?? "") }
     if changing {
         // After a switch to a window the plan opened, show that one while it is still open.
         let w2 = (switched ? windows().first { $0.id == w.id } : nil) ?? resolve(target) ?? w

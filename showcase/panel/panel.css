@@ -58,8 +58,9 @@ html, body { height: 100%; background: transparent; }
   75% { opacity: 1; -webkit-mask: var(--d3) 0 0 / 2px 2px; mask: var(--d3) 0 0 / 2px 2px; }
   100% { opacity: 1; -webkit-mask: none; mask: none; }
 }
-/* A row being taken away (forgotten, done, dropped) dissolves out the same way, then the list closes up. */
-.item.leaving { animation: dissolve-out 200ms step-end both; pointer-events: none; }
+/* A row being taken away (removed, forgotten, done, dropped) dissolves out the same way, then the list closes up. */
+.list > li.leaving { animation: dissolve-out 200ms step-end both; pointer-events: none; }
+.list > li.gone { display: none; }
 @keyframes dissolve-out {
   0% { -webkit-mask: var(--d3) 0 0 / 2px 2px; mask: var(--d3) 0 0 / 2px 2px; }
   33% { -webkit-mask: var(--d2) 0 0 / 2px 2px; mask: var(--d2) 0 0 / 2px 2px; }
@@ -93,6 +94,8 @@ html, body { height: 100%; background: transparent; }
 .by { margin: 2px 0 0; font-size: var(--t-small); line-height: 1.35; color: var(--ink-3); }
 /* Quit, top right: asks first (the .arm Confirm, like Forget). */
 .head-quit { flex: none; margin-inline-start: auto; font-size: var(--t-small); }
+.head-close { flex: none; margin-inline-start: 0; }
+.head-close svg { display: block; }
 
 /* ---------- look tiles: each look, live ---------- */
 .looks { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
@@ -116,7 +119,6 @@ html, body { height: 100%; background: transparent; }
 :root { --side: 148px; }
 .side { display: flex; flex-direction: column; gap: 4px; padding: 12px 10px var(--gut); border-right: 1px dashed var(--line); overflow-y: auto; }
 .nav { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
-.side-label { margin: 14px 8px 4px; font: 700 var(--t-small)/1.3 var(--mono); font-stretch: 87.5%; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
 /* A page link: quiet text until it's hovered or current; the current one sits in the accent LED frame. */
 .navi {
   appearance: none; border: 0; cursor: pointer; width: 100%;
@@ -184,8 +186,8 @@ html, body { height: 100%; background: transparent; }
 .ghead h2 { display: flex; align-items: baseline; gap: 8px; font-size: var(--t-head); }
 .ghead h2 .n { font-weight: 500; color: var(--ink-3); }
 /* A description reads at the same size as the rows under it; it's quieter by colour, not by size. */
-.ghead p { margin: 0; font-size: var(--t-body); line-height: 1.4; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ghead p.wrap { white-space: normal; }
+/* A section's description wraps rather than being cut off: it's the only place that says what the section is for. */
+.ghead p { margin: 0; font-size: var(--t-body); line-height: 1.4; color: var(--ink-3); overflow-wrap: break-word; text-wrap: pretty; }
 .sub { margin: 0; font: 700 var(--t-small)/1.3 var(--mono); font-stretch: 87.5%; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
 
 /* Buttons here are a size down from the guide's; mini ones (header, footer, row ends) a size down again. */
@@ -229,7 +231,8 @@ html, body { height: 100%; background: transparent; }
 /* A question: two stacked bars, like a quote, instead of a dot. */
 .item.ask .mark { background: none; border-left: 3px solid var(--ink-3); border-right: 3px solid var(--ink-3); height: 8px; width: 9px; }
 .row-btns { display: inline-flex; gap: 10px; }
-.empty { margin: 0; font-size: var(--t-body); line-height: 1.4; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* What to do when a list is empty: it wraps, never cut off, since it's the hint they need. */
+.empty { margin: 0; font-size: var(--t-body); line-height: 1.4; color: var(--ink-2); overflow-wrap: break-word; text-wrap: pretty; }
 .usage { margin: 0; font-size: var(--t-small); line-height: 1.4; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* A long list: a search field once there are more than a page, and "Show more" at the end. */
@@ -269,6 +272,10 @@ html, body { height: 100%; background: transparent; }
 
 /* ---------- settings ---------- */
 .setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 32px; }
+/* A dropdown shrinks before its label does: OpenRouter's long model names squashed the labels to a letter (#124). */
+.setting:has(> .field.select) { grid-template-columns: minmax(min(9em, 45%), 1fr) auto; }
+.setting > .field.select { min-width: 0; }
+.setting > .field.select select { width: 100%; text-overflow: ellipsis; }
 .setting > span { min-width: 0; font-size: var(--t-body); line-height: 1.35; color: var(--ink); }
 .setting > span small { display: block; font-size: var(--t-small); line-height: 1.35; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .setting .link { white-space: nowrap; }
@@ -368,7 +375,7 @@ html, body { height: 100%; background: transparent; }
 .note[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .frame.opening, .frame.shutting, .pane.enter > *, .pane.enter .list > li, .navi.ping, .item.leaving, .note, .arm[aria-pressed="true"] > .yes { animation: none; }
+  .frame.opening, .frame.shutting, .pane.enter > *, .pane.enter .list > li, .navi.ping, .list > li.leaving, .note, .arm[aria-pressed="true"] > .yes { animation: none; }
   .navi, .arm > span, .tab, .ibtn, .ibtn > span { transition: none; }
 }
 

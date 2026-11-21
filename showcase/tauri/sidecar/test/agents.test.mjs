@@ -249,6 +249,8 @@ assert.match(agentSystem('maker', { dir: '/x', returns: 'answer' }), /report is 
   const mgr = mk();
   const tick = () => new Promise((r) => setTimeout(r, 400));
   const lastOf = (type) => events.filter((e) => e.type === type).at(-1);
+  // Ending an agent writes its record before it's reported, which can take longer than a tick on a slow disk (Windows CI).
+  const until = async (ok, ms = 5000) => { for (const t0 = Date.now(); !ok() && Date.now() - t0 < ms;) await new Promise((r) => setTimeout(r, 50)); };
 
   // Starting: its folder, its process, its row.
   fs.writeFileSync(path.join(home, 'logo.png'), 'img');
@@ -364,6 +366,7 @@ assert.match(agentSystem('maker', { dir: '/x', returns: 'answer' }), /report is 
   assert.equal(t.signals.length, 0, 'a heartbeat alone is not progress, but 3 minutes have not passed');
   T += 61_000; t.emit('message', { t: 'beat' }); mgr.check(); await tick();
   const tid = t.sent[0].agent.id;
+  await until(() => lastOf('fail')?.agent.id === tid);
   assert.equal(mgr.get(tid).state, 'failed');
   assert.match(mgr.get(tid).reason, /stuck/);
   assert.equal(lastOf('fail').agent.id, tid);
@@ -458,6 +461,11 @@ assert.match(agentSystem('maker', { dir: '/x', returns: 'answer' }), /report is 
   const b = await mgr.start({ type: 'maker', title: 'Plain', brief: 'Make a thing.' });
   assert.equal(children[1].sent[0].content, 'Brief from Ken:\nMake a thing.');
   assert.equal(mgr.get(b.id).request, undefined);
+  // A scheduled job's run belongs to no turn: whatever they last said never rides into its brief.
+  said = 'remind me to call mum';
+  const sch = await mgr.start({ type: 'researcher', title: 'News', brief: 'Sum up the news.', scheduled: true });
+  assert.equal(children[2].sent[0].content, 'Brief from Ken:\nSum up the news.');
+  assert.equal(mgr.get(sch.id).request, undefined);
   // The news quotes what was asked
   children[0].emit('message', { t: 'finish', result: { outcome: 'Made the page', files: [], report: null } });
   children[0].emit('message', { t: 'end', ok: true }); children[0].emit('close', 0, null);
@@ -502,6 +510,26 @@ assert.match(agentSystem('maker', { dir: '/x', returns: 'answer' }), /report is 
   crewOn = false;
   await mgr.start({ continue: a.id, type: 'researcher', title: 'Chairs', brief: 'And reviews.' });
   assert.equal(asked[2], undefined);
+}
+
+// A subagent on a model that can't see images (#152): pictures stay in its inputs folder and out of its first message.
+{
+  const home = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'roamies-textagent-')));
+  const children = [];
+  const fork = () => { const c = new EventEmitter(); Object.assign(c, { sent: [], connected: true, send(m) { c.sent.push(m); }, kill() {} }); children.push(c); return c; };
+  const config = {
+    model: async () => ({ provider: 'local', model: 'local/nim/coder', route: 'api', images: false }), creds: async () => ({}), allowActions: () => true,
+    image: () => ({ type: 'image', mediaType: 'image/png', data: Buffer.from('png').toString('base64') }), open: async () => {}, reveal: async () => {},
+  };
+  const openRule = (p, h, o) => checkOpen(String(p).replace(home, '/Users/ken'), '/Users/ken', o);
+  const mgr = createAgents({ fork, ui: () => {}, config, root: path.join(home, 'Roamies'), userName: 'Ken', runner: '/x/agentrun.mjs', safety: { checkRead, checkWrite, checkOpen: openRule, checkLink }, home, now: () => 1 });
+  fs.writeFileSync(path.join(home, 'logo.png'), 'img');
+  const a = await mgr.start({ type: 'maker', title: 'Page', brief: 'Make a page.', inputs: ['snap', '~/logo.png'] });
+  const content = children[0].sent[0].content;
+  assert.equal(typeof content, 'string', 'no pictures in its message');
+  assert.match(content, /inputs\/snap-\d+\.png \(the picture Ken sent; your model can't see pictures\)/);
+  assert.match(content, /inputs\/logo\.png/);
+  assert.ok(fs.existsSync(path.join(a.dir, 'inputs', 'logo.png')), 'the files are still copied in');
 }
 
 console.log('agents tests: passed');

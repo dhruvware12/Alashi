@@ -9,6 +9,10 @@ const err = (message, extra = {}) => Object.assign(new Error(message), extra);
 // What is a limit
 assert.equal(limitFrom(err('429 Too Many Requests'), now).kind, 'limit');
 assert.equal(limitFrom(err('Rate limit exceeded'), now).kind, 'limit');
+// Regression (#144): Gemini's per-minute limit mentions billing; it's a limit for its retry time, not an hour of "no credit".
+const gem = limitFrom(err('You exceeded your current quota, please check your plan and billing details. Please retry in 37.5s.'), now);
+assert.equal(gem.kind, 'limit'); assert.equal(gem.until, now + 37_500);
+assert.equal(limitFrom(err('You exceeded your current quota, please check your plan and billing details. insufficient_quota'), now).kind, 'credit', "OpenAI's empty account, in the same words");
 assert.equal(limitFrom(err("You've hit your usage limit"), now).kind, 'limit');
 assert.equal(limitFrom(err('Request failed', { status: 429 }), now).kind, 'limit');
 assert.equal(limitFrom(err('boom', { cause: err('quota exceeded for this project') }), now).kind, 'limit', 'found in the chain');

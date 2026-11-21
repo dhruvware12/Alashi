@@ -1,7 +1,7 @@
 // The user's own API keys (Fish Audio), kept the safest way each system offers:
 // - macOS: the login keychain, through the signed roamies-hands helper (secret-get/-set/-delete). Encrypted,
 //   locked with their Mac login, readable without a prompt only by that helper.
-// - Windows: DPAPI (encrypted for this Windows user only), stored in ~/.gg/sidekick/secrets.json.
+// - Windows: DPAPI (encrypted for this Windows user only), stored in ~/Roamies/Data/secrets.json.
 // - Linux: the desktop's keyring (GNOME Keyring, KWallet or KeePassXC, through the Secret Service), with secret-tool.
 // The secret travels on stdin/stdout, never in a command line. There's no plain-text fallback: if the safe
 // store fails, the key isn't saved. ROAMIES_DATA_DIR test runs without the helper use a file in that folder.
