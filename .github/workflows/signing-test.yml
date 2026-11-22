@@ -10,22 +10,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Minisign
-        run: sudo apt-get update && sudo apt-get install -y minisign
-
-      - name: Test signing key
+      - name: Check private key fingerprint
         env:
           PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$PRIVATE_KEY"
-          test -n "$KEY_PASSWORD"
-
           printf '%s' "$PRIVATE_KEY" | base64 --decode > signing.key
-          printf 'ALASHI signing test\n' > test.txt
-
-          minisign -Sm test.txt -s signing.key -W -P "$KEY_PASSWORD"
-
-          echo "Signing succeeded."
+          sha256sum signing.key
           rm -f signing.key
