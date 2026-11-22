@@ -10,26 +10,22 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
       - name: Install Minisign
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y minisign
+        run: sudo apt-get update && sudo apt-get install -y minisign
 
-      - name: Test signing secrets
+      - name: Test signing key
         env:
           PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          PUBLIC_KEY: ${{ fromJson('{"key":"value"}').key }}
         run: |
-          set -e
-          test -n "$PRIVATE_KEY" || { echo "Private key secret missing"; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo "Password secret missing"; exit 1; }
+          set -euo pipefail
+          test -n "$PRIVATE_KEY"
+          test -n "$KEY_PASSWORD"
 
-          echo "$PRIVATE_KEY" | base64 -d > signing.key
-          echo "ALASHI signing test" > test.txt
+          printf '%s' "$PRIVATE_KEY" | base64 --decode > signing.key
+          printf 'ALASHI signing test\n' > test.txt
 
-          minisign -Sm test.txt -s signing.key -P "$KEY_PASSWORD"
+          minisign -Sm test.txt -s signing.key -W -P "$KEY_PASSWORD"
 
           echo "Signing succeeded."
+          rm -f signing.key
