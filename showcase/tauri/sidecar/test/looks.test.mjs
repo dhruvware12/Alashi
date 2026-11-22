@@ -9,11 +9,14 @@ const side = src('../sidekick.mjs'), guide = src('../../../onboarding/onboarding
 const looks = [...side.slice(side.indexOf('const LOOKS = ['), side.indexOf('];', side.indexOf('const LOOKS = ['))).matchAll(/\['(\w+)', '([^']+)', (DEFAULT_VOICE|'(\w+)')\]/g)];
 assert.deepEqual(looks.map((m) => m[1]), ['classic', 'jarvis', 'glayos', 'ultren', 'anime', 'sarah', 'adrian', 'rita']);
 const voices = Object.fromEntries(looks.map((m) => [m[1], m[4] ?? null]));
-assert.equal(voices.classic, null, 'Roamie uses DEFAULT_VOICE');
+// ALASHI intentionally shares SARAH's female voice
+assert.equal(voices.classic, '933563129e564b19a115bedd57b7406a', 'ALASHI uses SARAH\'s female voice');
+assert.equal(voices.sarah, '933563129e564b19a115bedd57b7406a', 'SARAH retains her female voice');
+assert.equal(voices.classic, voices.sarah, 'ALASHI and SARAH share the same voice');
 assert.equal(DEFAULT_VOICE, '2680da81de8348a68e1f4dbaa79272f1');
 assert.equal(voices.jarvis, 'e13fa398a7f445a685316a3de6089ce7');
-// Regression: Roamie spoke with JARVIS's voice (the default was JARVIS's ID).
-assert.equal(new Set([DEFAULT_VOICE, ...Object.values(voices).filter(Boolean)]).size, 8, 'every look has its own voice');
+// 7 unique voices: ALASHI/SARAH share one, the other 6 are distinct
+assert.equal(new Set(Object.values(voices).filter(Boolean)).size, 7, '7 unique voices (ALASHI and SARAH share)');
 assert.ok(!/config\.fishVoice/.test(side), 'a saved fishVoice (the old JARVIS default) is never used');
 assert.equal(voices.anime, 'd8f3b4c1199f4568a767ec54112d2b17');
 assert.equal(voices.sarah, '933563129e564b19a115bedd57b7406a');

@@ -14,6 +14,8 @@
   const act = (id, away = false) => { if (away) hide(); send({ type: 'menu', id }); };
 
   let state = null, tab = 'home', deferred = false;
+// Track dismissed update versions for this session
+let dismissedUpdateVersion = null;
   // What's open in the panel itself: a key field (provider id, 'fish' or 'gemini'), the row action waiting for its
   // Confirm, each long list's page (pg) and how many rows fit on one (per, measured), Memory's tab and its search.
   const ui = { key: null, kind: {}, arm: null, add: { label: '', url: '', key: '', images: false }, addSent: null, pg: {}, per: {}, base: {}, rec: null, mtab: 'facts', tabs: {}, q: '', bindShown: new Set() };
@@ -84,6 +86,43 @@
   // Asking, it has no tooltip: the word on it says what it does.
   const armIcon = (b, on) => { b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? `Confirm: ${b.dataset.aria}` : b.dataset.aria); if (on) b.removeAttribute('data-tip'); else b.dataset.tip = b.dataset.name; };
   const calmIcons = () => { for (const o of document.querySelectorAll('.pane .ibtn[aria-pressed="true"]')) armIcon(o, false); };
+
+// Create and show the update dialog
+function showUpdateDialog(version, notes, page) {
+  if (dismissedUpdateVersion === version) return;
+  const overlay = el('div', { className: 'dialog-overlay', on: { click: (e) => { if (e.target === overlay) hideUpdateDialog(); } } });
+  const dialog = el('div', { className: 'dialog' },
+    el('div', { className: 'dialog-header' },
+      el('div', { className: 'dialog-icon', 'aria-hidden': 'true' },
+        '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>'
+      ),
+      el('h2', { className: 'dialog-title' }, 'Update Available'),
+      el('button', { className: 'dialog-close', 'aria-label': 'Dismiss', on: { click: hideUpdateDialog } },
+        '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'
+      )
+    ),
+    el('div', { className: 'dialog-body' },
+      el('p', {}, 'A new version of ALASHI is ready: ', el('span', { className: 'version' }, version), '.'),
+      notes ? el('p', { className: 'notes' }, notes) : null
+    ),
+    el('div', { className: 'dialog-actions' },
+      btn('Later', () => { dismissedUpdateVersion = version; hideUpdateDialog(); }, { kind: 'ghost', aria: 'Dismiss this update for this session' }),
+      btn(page ? `Get ${version}…` : `Update to ${version} and Restart`, () => { hideUpdateDialog(); act('install_update'); }, { kind: 'primary', disabled: false, aria: page ? `Open download page for ${version}` : `Download and install ${version}` })
+    )
+  );
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  // Focus the primary button for accessibility
+  setTimeout(() => { const primary = dialog.querySelector('.btn.primary'); if (primary) primary.focus(); }, 50);
+}
+
+function hideUpdateDialog() {
+  const overlay = document.querySelector('.dialog-overlay');
+  if (overlay) {
+    overlay.style.animation = 'fade-in 120ms ease-out reverse';
+    setTimeout(() => overlay.remove(), 120);
+  }
+}
   function iconArmed(icon, tip, k, id, aria) {
     const no = el('span', { className: 'no', 'aria-hidden': 'true' });
     no.innerHTML = pix(icon);
@@ -901,8 +940,6 @@
   // Who made ALASHI: Ken, live (he's drawn like the looks but isn't one), and where to find him.
   const KEN = [
     ['Open source under AGPL-3.0', 'https://github.com/dhruvware12/Alashi', 'Open the ALASHI source code on GitHub'],
-    ['YouTube', 'ALASHI', 'https://github.com/dhruvware12/Alashi', 'Open ALASHI on GitHub'],
-    ['TikTok', 'ALASHI', 'https://github.com/dhruvware12/Alashi', 'Open ALASHI on GitHub'],
     ['Source code', 'Open source under AGPL-3.0', 'https://github.com/dhruvware12/Alashi', 'Open the ALASHI source code on GitHub'],
   ];
   let ken = null;
@@ -1108,6 +1145,8 @@
   };
   window.__panelShut = () => {
     disarm(); ui.key = null; unarmQuit();
+    dismissedUpdateVersion = null; // Reset dismissed version so dialog can show again next session
+    hideUpdateDialog(); // Ensure any open dialog is closed
     body.classList.remove('opening');
     if (REDUCED.matches) { body.classList.add('shut'); return; }
     body.classList.add('shutting');
@@ -1123,9 +1162,15 @@
 
   window.__panel = (m) => {
     if (m.kind === 'state') {
-      const first = !state; state = m.state;
+      const first = !state;
+      const prevUpdateAvailable = state?.update?.available;
+      state = m.state;
       if (ui.arm && !document.querySelector(`[data-k="${CSS.escape(ui.arm)}"]`)) ui.arm = null;
       render(null, first);
+      // Show update dialog when a new update becomes available (not dismissed this session)
+      if (!first && state.update?.available && state.update.available !== prevUpdateAvailable && state.update.available !== dismissedUpdateVersion) {
+        showUpdateDialog(state.update.available, state.update.notes ?? null, state.update.page);
+      }
       if (m.state.tab) show(m.state.tab, true); // opened for a reason (asked with nothing signed in: the Model page)
     }
     else if (m.kind === 'note') note(m.text, m.bad, m.copy);

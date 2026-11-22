@@ -758,7 +758,6 @@ fn show_panel(app: &AppHandle, rect: Option<tauri::Rect>, toggle: bool) {
                 .visible(false);
             match b.build() {
                 Ok(w) => {
-                    let _ = w.open_devtools();
                     #[cfg(target_os = "macos")]
                     over_fullscreen(&w);
                     let app2 = app.clone();

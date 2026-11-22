@@ -24,7 +24,10 @@ for (const t of [mac, win, linux]) assert.ok(!/Behavior \(|, Voice \(/.test(t), 
 assert.match(win, /Model \(.*Ollama and LM Studio, each with Connect or Disconnect.*Another server with Add server.*Its models can see images/);
 for (const t of [mac, win, linux]) {
   assert.match(t, /Save Diagnostics/);
-  assert.match(t, /github\.com\/KenKaiii\/Roamies/);
+  assert.match(t, /github\.com\/dhruvware12\/Alashi/);
   assert.ok(!/\$\{|undefined/.test(t), 'every part is filled in');
 }
 console.log('about tests: passed');
+
+
+

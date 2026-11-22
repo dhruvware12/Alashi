@@ -401,7 +401,7 @@ assert.match(agentSystem('maker', { dir: '/x', returns: 'answer' }), /report is 
   assert.equal(fs.readFileSync(path.join(desk, 'card 2.txt'), 'utf8'), 'made');
   assert.ok(await mgr.openFile(g.id, path.join(desk, 'card 2.txt')), 'its delivered copy opens too');
   await assert.rejects(mgr.start({ type: 'maker', title: 'x', brief: 'x', deliver_to: '~/.ssh' }), /Can't deliver/);
-  // Next launch: one still marked working was cut off when Roamies closed.
+  // Next launch: one still marked working was cut off when ALASHI closed.
   const live = await mgr.start({ type: 'maker', title: 'Cut off', brief: 'x' });
   mgr.stopAll();
   await tick();
@@ -410,7 +410,7 @@ assert.match(agentSystem('maker', { dir: '/x', returns: 'answer' }), /report is 
   const again = mk();
   await again.loaded;
   assert.equal(again.get(live.id).state, 'stopped');
-  assert.equal(again.get(live.id).reason, 'Roamies closed');
+  assert.equal(again.get(live.id).reason, 'ALASHI closed');
   assert.equal(again.get(a.id).title, 'Dog brand landing page', 'earlier agents are known again');
   again.stopAll();
   await tick();

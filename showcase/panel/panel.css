@@ -374,9 +374,68 @@ html, body { height: 100%; background: transparent; }
 .note.bad { color: var(--danger); }
 .note[hidden] { display: none; }
 
+/* ---------- update dialog ---------- */
+.dialog-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex; align-items: center; justify-content: center;
+  animation: fade-in 120ms ease-out;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.dialog {
+  background: var(--panel);
+  border: 1px solid var(--line-hi);
+  border-radius: 8px;
+  padding: 20px 24px;
+  max-width: 420px;
+  width: calc(100% - 48px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  animation: dialog-in 160ms cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.dialog-header {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin-bottom: 8px;
+}
+.dialog-icon {
+  flex: none; width: 40px; height: 40px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent-ink);
+}
+.dialog-title {
+  flex: 1; font: 700 14px/1.3 var(--mono);
+  color: var(--ink); margin: 0;
+}
+.dialog-close {
+  flex: none; background: none; border: 0; cursor: pointer;
+  padding: 4px; color: var(--ink-3); line-height: 1;
+}
+.dialog-close:hover { color: var(--ink); }
+
+.dialog-body {
+  font: 500 var(--t-body)/1.4 var(--mono);
+  color: var(--ink-2);
+  margin-bottom: 16px;
+}
+.dialog-body .version { font-weight: 700; color: var(--accent); }
+.dialog-body .notes { margin-top: 8px; font-size: var(--t-small); color: var(--ink-3); white-space: pre-wrap; }
+
+.dialog-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.dialog-actions .btn { min-width: 96px; }
+
 @media (prefers-reduced-motion: reduce) {
   .frame.opening, .frame.shutting, .pane.enter > *, .pane.enter .list > li, .navi.ping, .list > li.leaving, .note, .arm[aria-pressed="true"] > .yes { animation: none; }
   .navi, .arm > span, .tab, .ibtn, .ibtn > span { transition: none; }
+  .dialog-overlay, .dialog { animation: none; }
 }
 
 /* Arabic and Hebrew in a list (dir=auto on the text): the Arabic font first, for its own word spacing. */

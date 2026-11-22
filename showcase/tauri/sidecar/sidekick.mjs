@@ -156,7 +156,7 @@ const sizeNow = () => (SIZES.some(([s]) => s === config.size) ? config.size : 'd
 // config as fishVoice, so the voice comes from the look and that setting is no longer read. (With Gemini as the
 // voice, it's the one Gemini voice the user picked, whatever the look.)
 const LOOKS = [
-  ['classic', 'ALASHI', DEFAULT_VOICE],
+  ['classic', 'ALASHI', '933563129e564b19a115bedd57b7406a'],
   ['jarvis', 'JARVIS', 'e13fa398a7f445a685316a3de6089ce7'],
   ['glayos', 'GlayOS', 'ee885900b0874d12b1c3439d1e56cc95'],
   ['ultren', 'Ultren', '06cfdb3653a4496983d6ad77f98cc184'],
