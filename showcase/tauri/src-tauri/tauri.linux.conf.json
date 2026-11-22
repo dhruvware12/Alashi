@@ -4,8 +4,8 @@
       "onnxruntime/libonnxruntime.so": "libonnxruntime.so"
     },
     "externalBin": [
-      "binaries/roamies-voice",
-      "binaries/roamies-node"
+      "binaries/alashi-voice",
+      "binaries/alashi-node"
     ],
     "linux": {
       "appimage": {

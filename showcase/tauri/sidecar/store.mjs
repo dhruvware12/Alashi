@@ -6,8 +6,11 @@ import { existsSync, readFileSync, renameSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { dataPaths, roamiesDir } from './datadir.mjs';
 
-export const DIR = process.env.ROAMIES_DATA_DIR ? path.join(process.env.ROAMIES_DATA_DIR, 'sidekick') : path.join(process.env.GG_DATA_DIR || path.join(os.homedir(), '.gg'), 'sidekick');
+export const roamiesRoot = () => roamiesDir();
+export const DIR = dataPaths().dir;
+
 const SESSIONS = path.join(DIR, 'sessions');
 const MEMORY = path.join(DIR, 'memory.json');
 const SESSION_FILE = /^\d{8}-\d{6}-[a-z0-9]{6}\.json$/;

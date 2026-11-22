@@ -32,7 +32,7 @@
     },
     "createUpdaterArtifacts": true,
     "externalBin": [
-      "binaries/roamies-node"
+      "binaries/alashi-node"
     ]
   },
   "plugins": {

@@ -1,5 +1,5 @@
 // On macOS, compiles the Swift helpers into the sidecar paths Tauri bundles (externalBin):
-// roamies-voice (talk chord + speech) and roamies-hands (window capture, reading and controlling apps).
+// alashi-voice (talk chord + speech) and alashi-hands (window capture, reading and controlling apps).
 fn main() {
     #[cfg(target_os = "macos")]
     {

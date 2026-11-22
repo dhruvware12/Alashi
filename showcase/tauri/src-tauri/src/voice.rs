@@ -29,7 +29,7 @@ pub(crate) fn last_voice_exit() -> Value {
 }
 
 pub(crate) fn voice_binary() -> Option<PathBuf> {
-    helper_binary("roamies-voice")
+    helper_binary("alashi-voice")
 }
 
 pub(crate) fn start_voice(app: &AppHandle) {
@@ -88,6 +88,10 @@ pub(crate) fn start_voice(app: &AppHandle) {
                 if let Some(mut c) = slot.take() {
                     if let Ok(status) = c.wait() {
                         let how = exit_info(status);
+                            if let Ok(mut e) = VOICE_EXIT.lock() {
+                                let times = e.as_ref().map_or(0, |(_, n)| *n) + 1;
+                                *e = Some((how.clone().into(), times));
+                            }
                         eprintln!("voice helper exited: {how}");
                         if let Ok(mut e) = VOICE_EXIT.lock() {
                             let times = e.as_ref().map_or(0, |(_, n)| *n) + 1;
@@ -316,5 +320,14 @@ fn handle_voice(app: &AppHandle, msg: Value) {
             to_sidecar(app, &m);
         }
         _ => {}
+    }
+}
+
+
+fn exit_info(status: std::process::ExitStatus) -> serde_json::Value {
+    if status.success() {
+        serde_json::json!({ "success": true })
+    } else {
+        serde_json::json!({ "success": false, "code": status.code() })
     }
 }

@@ -1,4 +1,4 @@
-// Skills: how-to memory, learned or installed from a link (a GitHub repo or folder, a skills.sh page, a SKILL.md). Each is ~/Roamies/Skills/<slug>/SKILL.md, with name and description up top
+// Skills: how-to memory, learned or installed from a link (a GitHub repo or folder, a skills.sh page, a SKILL.md). Each is ~/.alashi/Skills/<slug>/SKILL.md, with name and description up top
 // (the agentskills / GG layout) and the steps below. Only the index (one line each) rides in the live state; the
 // steps are read with use_skill when one fits. Every save goes through checkSkill (safety.mjs) and loses its keys.
 import { randomBytes } from 'node:crypto';

@@ -216,9 +216,11 @@
   function updateButton() {
     const u = state.update, b = $('head-update'), v = u.available;
     const fresh = u.result?.ok && Date.now() - (u.result.at ?? 0) < FRESH;
+    const pct = u.progress != null ? ` (${u.progress}%)` : '';
     const [label, aria, kind, off] =
       u.done ? ['Done', `ALASHI ${u.done} is installed. Restarting`, 'ghost', true]
       : u.installing ? ['Updating…', `Installing ALASHI ${v}`, 'ghost', true]
+      : u.progress != null ? [`Downloading${pct}`, `Downloading ALASHI ${v}${pct}`, 'ghost', true]
       : v ? (u.page ? [`Get ${v}`, `Open the download page for ALASHI ${v}`, 'primary', false] : [`Update to ${v}`, `Install ALASHI ${v} and restart`, 'primary', false])
       : u.checking ? ['Checking…', 'Checking for updates', 'ghost', true]
       : fresh ? ['Up to date', `ALASHI ${state.version} is up to date`, 'ghost', true]
@@ -898,17 +900,17 @@
   }
   // Who made ALASHI: Ken, live (he's drawn like the looks but isn't one), and where to find him.
   const KEN = [
-    ['Skool', 'Learn with Ken, or support him', 'https://www.skool.com/kenkai', "Open Ken Kai's Skool community"],
-    ['YouTube', '@kenkaidoesai', 'https://www.youtube.com/@kenkaidoesai', "Open Ken Kai's YouTube channel"],
-    ['TikTok', '@ggkenkai', 'https://www.tiktok.com/@ggkenkai', "Open Ken Kai's TikTok"],
-    ['Source code', 'Open source under AGPL-3.0', 'https://github.com/KenKaiii/ALASHI', 'Open the ALASHI source code on GitHub'],
+    ['Open source under AGPL-3.0', 'https://github.com/dhruvware12/Alashi', 'Open the ALASHI source code on GitHub'],
+    ['YouTube', 'ALASHI', 'https://github.com/dhruvware12/Alashi', 'Open ALASHI on GitHub'],
+    ['TikTok', 'ALASHI', 'https://github.com/dhruvware12/Alashi', 'Open ALASHI on GitHub'],
+    ['Source code', 'Open source under AGPL-3.0', 'https://github.com/dhruvware12/Alashi', 'Open the ALASHI source code on GitHub'],
   ];
   let ken = null;
   function maker() {
     if (!ken) {
       const cv = el('canvas', { 'aria-hidden': 'true' });
       const r = liveRoamie(cv, 100, 74, { look: 'ken', y: 0.55 });
-      const card = el('div', { className: 'maker' }, cv, el('span', {}, 'Ken Kai', el('small', { textContent: 'Creator of ALASHI' })));
+      const card = el('div', { className: 'maker' }, cv, el('span', {}, 'ALASHI', el('small', { textContent: 'Project' })));
       let waved = 0;
       card.addEventListener('pointerenter', () => { if (r && Date.now() - waved > 3500) { waved = Date.now(); r.act('wave'); } });
       r?.appear('crt');

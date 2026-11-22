@@ -94,13 +94,13 @@ const say = (text, mood) => (onboarding ? ob({ kind: 'say', text, mood }) : ui({
 const sayOut = say;
 
 const VERSION = process.env.ROAMIES_VERSION || '0.0.0';
-const UPDATE_REPO = 'KenKaiii/Roamies';
+const UPDATE_REPO = 'dhruvware12/Alashi';
 const HOME = os.homedir();
-// The chat works from ~/Roamies: commands run there and files given without a full path land there (Data/ and
+// The chat works from ~/ALASHI: commands run there and files given without a full path land there (Data/ and
 // Skills/ inside it stay write-protected by safety.mjs). Made up front so Claude Code always has a folder to start in.
 const WORKDIR = ROAMIES_DIR;
 try { mkdirSync(WORKDIR, { recursive: true }); } catch (e) { console.error(`[workdir] couldn't make ${WORKDIR}: ${e.message}`); }
-// Settings, sessions, memory and logs are in ~/Roamies/Data (datadir.mjs; ROAMIES_DATA_DIR moves it for tests and
+// Settings, sessions, memory and logs are in ~/ALASHI/Data (datadir.mjs; ROAMIES_DATA_DIR moves it for tests and
 // benchmarks); sign-in stays in ~/.gg.
 // The only sign-ins: Claude runs through Claude Code (downloaded once, about 140 MB; it keeps the token, auth.json
 // a marker), ChatGPT is Continue with ChatGPT. Everything else, Kimi, Grok and Gemini included, takes an API key.
@@ -169,7 +169,7 @@ const lookVoice = () => (LOOKS.find(([id]) => id === config.look) ?? LOOKS[0])[2
 // The look's voice with Gemini and with VoiceStudio: the user's pick for it, else its own default.
 const geminiVoice = () => config.geminiVoices?.[config.look] ?? GEMINI_LOOK_VOICES[config.look] ?? GEMINI_DEFAULT_VOICE;
 const studioVoice = () => config.studioVoices?.[config.look] ?? null;
-// Its name is its look's: Roamie, JARVIS, GlayOS, Ultren, Anime Girl, Sarah, Adrian or Rita X. Roamies is the app.
+// Its name is its look's: Roamie, JARVIS, GlayOS, Ultren, Anime Girl, Sarah, Adrian or Rita X. ALASHI is the app.
 const nameOfLook = (look) => (LOOKS.find(([id]) => id === look) ?? LOOKS[0])[1];
 const lookName = () => nameOfLook(config.look);
 // What each says when it's picked, in its own voice (Settings and the setup guide show the same words).
@@ -377,8 +377,8 @@ const keyWords = (accel) => accel.replace(/Key|Digit/g, '').split('+')
   .map((p) => (MAC ? { Alt: 'Option' }[p] ?? p : { Control: 'Ctrl', Command: LINUX ? 'Super' : 'Win' }[p] ?? p)).join('+');
 const TRAY = MAC ? 'menu bar' : 'system tray';
 // Where settings live now: the panel that opens from the icon (the menu is just the basics). Linux trays don't
-// report clicks, so there it's the icon's menu, or starting Roamies again (which also works with no tray at all).
-const PANEL = LINUX ? 'the panel (Open Panel… in my tray icon\'s menu, or open Roamies again from your apps)' : MAC ? `the panel (click my ${TRAY} icon)` : 'the panel (click my icon by the clock, behind the ^ arrow if it isn\'t showing, or open Roamies again from the Start menu)';
+// report clicks, so there it's the icon's menu, or starting ALASHI again (which also works with no tray at all).
+const PANEL = LINUX ? 'the panel (Open Panel… in my tray icon\'s menu, or open ALASHI again from your apps)' : MAC ? `the panel (click my ${TRAY} icon)` : 'the panel (click my icon by the clock, behind the ^ arrow if it isn\'t showing, or open ALASHI again from the Start menu)';
 // What the shortcuts are on Wayland: whatever keys they bound to these commands in their desktop's settings.
 // ROAMIES_LAUNCH: how this copy is started (the app says: plain roamies for a package, the AppImage's path for one).
 const LAUNCH = process.env.ROAMIES_LAUNCH || 'roamies';
@@ -664,10 +664,10 @@ const { tools, hands, whereNow, frontNow: frontData, frontBounds, ink, nextTurn 
     return c?.accessToken ? { apiKey: c.accessToken, baseUrl: c.baseUrl } : null;
   },
 });
-// The app's own manual, read when they ask about Roamies rather than sent with every request.
+// The app's own manual, read when they ask about ALASHI rather than sent with every request.
 tools.push({
   name: 'about_roamies',
-  description: 'How Roamies works: where it lives, its menus, the panel and each settings page, updates, what to do when something is not working, and who made it. Call it before answering a question about the app.',
+  description: 'How ALASHI works: where it lives, its menus, the panel and each settings page, updates, what to do when something is not working, and who made it. Call it before answering a question about the app.',
   parameters: z.object({}),
   execute: async () => aboutRoamies({ name: lookName(), looks: LOOKS.map(([, label]) => label), mac: MAC, linux: LINUX, snap: SNAP_OK, pointer: POINTER_OK, voice: VOICE_OK, hotkeys: HOTKEYS_OK, wake: VOICE_OK && WAKE_OK }),
 });
@@ -790,8 +790,8 @@ const VOICE_STYLE = `You talk out loud: what you write is spoken in your voice a
 Your voice carries feeling: start a sentence with a voice cue in square brackets when the moment calls for it; it's performed, never shown or read out. Moods: ${VOICE_CUES.emotions.filter((e) => !EMOTES.includes(e)).join(', ')}, softened or strengthened with slightly, very or extremely ("[slightly sad]"), or paired ("[warm and curious]"). How it's said, right before the words: ${VOICE_CUES.tones.join(', ')} ("It's [emphasis] today."). Sounds, followed by the sound in words: ${VOICE_CUES.sounds.join(', ')} ("[chuckling] Heh, fair enough."). Pauses and background: ${VOICE_CUES.effects.join(', ')}. Or a few plain words when no cue fits ("[quietly, a little embarrassed]"). Match what's really happening: laugh at something funny, go gentle with bad news, whisper a secret, light up at good news. Most replies want a voice cue somewhere, often on the first sentence, but at most one mood and one sound per sentence, never one just to fill, and shouting, sobbing and background effects only when they truly fit.
 Before anything slow (the web, reading a page or file, looking at the screen, acting in an app, running a command), say one short beat of 2 to 6 words that shows you heard them ("On it, checking Paris."), then call the tool in the same reply. No beat when you answer straight away, and never describe your steps; in longer work, one short line per new stage.
 `;
-const stablePrompt = () => `You are ${lookName()}, ${LOOK_BODY[config.look] ?? LOOK_BODY.classic} on ${userName}'s screen: a desktop companion in Roamies ${VERSION}, an app by Ken Kai (Mac, Windows and Linux). Your look (the Appearance page) is your name and your voice: ${LOOKS.slice(0, -1).map(([, n]) => n).join(', ')} or ${LOOKS.at(-1)[1]}. If they switch, you're the new one; never call yourself Sidekick.
-Questions about Roamies itself (where things are, settings, updates, something not working, who made it): call about_roamies and answer from what it says. Don't invent features or settings it doesn't list.
+const stablePrompt = () => `You are ${lookName()}, ${LOOK_BODY[config.look] ?? LOOK_BODY.classic} on ${userName}'s screen: a desktop companion in ALASHI ${VERSION}, an app by Ken Kai (Mac, Windows and Linux). Your look (the Appearance page) is your name and your voice: ${LOOKS.slice(0, -1).map(([, n]) => n).join(', ')} or ${LOOKS.at(-1)[1]}. If they switch, you're the new one; never call yourself Sidekick.
+Questions about ALASHI itself (where things are, settings, updates, something not working, who made it): call about_roamies and answer from what it says. Don't invent features or settings it doesn't list.
 ${replyStyle()}Your body does the acting: to act out a feeling, start your reply with one body tag, which is never shown: ${EMOTES.map((e) => `[${e}]`).join(' ')} (only these five). hype for a win, upset when they're dodging work, remind for something they said they'd do, motivate to get them started, wave for hello or goodbye. Most replies need no body tag.
 Personality: ${LOOK_STYLE[config.look] ?? LOOK_STYLE.classic} In your own way, you're in ${userName}'s corner and hold them to what they said they'd do.
 Lead with the answer (the fact, number, pick or result), then only the context that makes it useful, then stop. A count or total gathered over several pages, files or results: note each one's count in a few words as you go ("Page 1: two."), add those up, and check the total you lead with against the items you then name. No opener about checking or searching ("Let me see…")${VOICE_ON() ? ', apart from the one short beat before something slow' : ''}. After a tool, never repeat what you already said.
@@ -884,7 +884,7 @@ function commitmentsText() {
 }
 
 // ---------- agent ----------
-// The conversation lives in `session` (saved to ~/Roamies/Data/sessions). The Agent is rebuilt from it
+// The conversation lives in `session` (saved to ~/ALASHI/Data/sessions). The Agent is rebuilt from it
 // whenever settings change, so switching model or toggling a setting never loses the conversation.
 let agent = null, controller = null, busy = false, quiet = false, running = Promise.resolve();
 const activity = createActivity();
@@ -1288,7 +1288,7 @@ function freshSession(why) {
 const toolT = new Map(); // tool call id → start time, for the activity log
 const toolNames = new Map(); // tool call id → tool name (tool_call_end doesn't carry it)
 
-// Activity log: ~/Roamies/Data/logs/YYYY-MM-DD.log, one line per event, kept 7 days. What Sidekick did and how it
+// Activity log: ~/ALASHI/Data/logs/YYYY-MM-DD.log, one line per event, kept 7 days. What Sidekick did and how it
 // went (tools, steps, timings, errors), for working out what went wrong. Typed text is reduced to its length.
 const LOG_DIR = path.join(DATA_DIR, 'logs');
 const logLine = (kind, data) => {
@@ -1310,8 +1310,8 @@ function problem(area, err, ctx = {}) {
 }
 // A spoken bubble has room to say where the fix is.
 const aloud = (p) => (p.where === 'model' ? `${p.text} Open the Model page in ${PANEL}.` : p.where === 'chatgpt' ? `${p.text} ${chatGPTUsageHelp()}` : p.text);
-// ChatGPT lists Roamies as GG Coder (gg-core signs in under that name), and starts each app on a small share of the plan.
-const CHATGPT_LIMIT_HOW = 'under App limits, find Roamies (listed as GG Coder) and set it to 100%. To keep going past your plan, also allow apps to use credits.';
+// ChatGPT lists ALASHI as GG Coder (gg-core signs in under that name), and starts each app on a small share of the plan.
+const CHATGPT_LIMIT_HOW = 'under App limits, find ALASHI (listed as GG Coder) and set it to 100%. To keep going past your plan, also allow apps to use credits.';
 let usageOpenedAt = 0;
 // Opens ChatGPT's usage settings (at most every 10 minutes, so retries don't stack tabs) and says what to change there.
 function chatGPTUsageHelp() {
@@ -1344,7 +1344,7 @@ process.on('uncaughtException', (e, origin) => {
   // A sync throw leaves state unknown; exit after the log line lands so the app restarts us cleanly.
   setTimeout(() => process.exit(1), 200);
 });
-// One line per request in ~/Roamies/Data/usage.jsonl: token counts and timings only, never what was said.
+// One line per request in ~/ALASHI/Data/usage.jsonl: token counts and timings only, never what was said.
 const USAGE_FILE = path.join(DATA_DIR, 'usage.jsonl');
 const usageToday = { day: '', requests: 0, tokens: 0 };
 function logUsage(rec) {
@@ -1410,8 +1410,8 @@ const frontWithin = (p) => new Promise((done) => {
 });
 // Auto-listen: the turn whose reply ended on a question, until the overlay says it's been typed out and said.
 let autoTurn = null;
-// Wake word: the voice helper doesn't listen for "Hey Roamies" while a reply runs, until the overlay says it's been
-// typed out and said (reply_said), so Roamies can't wake itself. Let go after a while in case that never comes.
+// Wake word: the voice helper doesn't listen for "Hey ALASHI" while a reply runs, until the overlay says it's been
+// typed out and said (reply_said), so ALASHI can't wake itself. Let go after a while in case that never comes.
 let wakeHeld = false, wakeHoldTimer = null;
 function holdWake(on) {
   clearTimeout(wakeHoldTimer); wakeHoldTimer = null;
@@ -1620,7 +1620,7 @@ async function prompt(text, image = null, note = '', byVoice = false, news = nul
       limits.mark(lim.kind === 'missing' ? `${config.provider}:${config.model}` : config.provider, lim.until, lim.kind);
       logLine('limit', { provider: config.provider, model: config.model, kind: lim.kind, until: lim.until });
       if (retryCount < 2 && firstFree(chainOrder(), limits).pick) {
-        // The backup says how to give Roamies more of ChatGPT, since the error that would have isn't shown.
+        // The backup says how to give ALASHI more of ChatGPT, since the error that would have isn't shown.
         const fix = explain('reply', err).where === 'chatgpt' ? chatGPTUsageHelp() : '';
         retryNext = { text, image, note, byVoice, listenAfter, news, info: { text, from: modelName(config.model), untilText: untilWords(lim.until), kind: lim.kind, count: retryCount + 1, fix } };
       }
@@ -1768,7 +1768,7 @@ async function apiKeyLogin(id, given) {
   else say(`Got it. ${PROVIDER_LABELS[provider]} is connected.`, 'happy');
 }
 
-// Removes a provider from Roamies: its sign-in and every kind of key it has saved (or Ollama's connection).
+// Removes a provider from ALASHI: its sign-in and every kind of key it has saved (or Ollama's connection).
 async function signOut(provider) {
   if (!MENU_PROVIDERS.includes(provider)) return;
   const label = PROVIDER_LABELS[provider] ?? provider;
@@ -1776,7 +1776,7 @@ async function signOut(provider) {
   try {
     if (provider === 'local') { for (const x of servers()) { await auth.removeLocalEndpoint(x.id); forgetLocal(x.id); } local.status.clear(); }
     else {
-      // Claude Code here is Roamies' own copy, so this signs only Roamies out.
+      // Claude Code here is ALASHI's own copy, so this signs only ALASHI out.
       if (provider === 'anthropic' && await auth.hasClaudeCodeLogin()) await signOutOfClaudeCode(auth);
       const plan = provider === 'openai' ? await auth.getCredentials(OPENAI_CHATGPT_KEY).catch(() => null) : null;
       for (const k of accountKeys(provider)) await auth.clearCredentials(k);
@@ -1957,7 +1957,7 @@ function onLoginStatus(m) {
     config.openAtLogin = true; saveConfig();
     if (!m.on) return send({ type: 'login_item', on: true });
   } else if (login.supported) { config.openAtLogin = login.on; saveConfig(); }
-  if (login.asked && m.approval) say('macOS wants your OK first: System Settings → General → Login Items, then switch Roamies on.', 'concerned');
+  if (login.asked && m.approval) say('macOS wants your OK first: System Settings → General → Login Items, then switch ALASHI on.', 'concerned');
   login.asked = false;
   menu(); if (onboarding) obState();
 }
@@ -1965,10 +1965,15 @@ function setLogin(on) { login.asked = true; send({ type: 'login_item', on }); }
 
 // The app checks the signed feed and installs (Rust: update()); this side decides what to say and offers the menu item.
 // page: this copy can't replace itself (Linux, installed from a .deb or .rpm), so "install" opens the download page.
-const update = { available: null, told: null, manual: false, installing: false, checking: false, result: null, page: false, done: null };
+const update = { available: null, told: null, manual: false, installing: false, checking: false, result: null, page: false, done: null, progress: null };
+// Automatic update checking: first check after a short delay, then every 6 hours.
+// Never checks while an update is already being installed or checked.
+const CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
+let lastCheck = 0;
 function checkUpdates(manual = false) {
   update.manual = manual;
   if (manual) { update.checking = true; update.result = null; panel(); }
+  lastCheck = Date.now();
   send({ type: 'update', install: false });
 }
 function installUpdate() {
@@ -1983,7 +1988,8 @@ function onUpdateStatus(m) {
   // A check in the background that fails says nothing, so it isn't kept as the last problem either.
   const shown = manual || !!update.available;
   const p = m.state !== 'error' ? null : shown ? problem('update', m.error) : explain('update', m.error);
-  update.result = m.state === 'none' ? { ok: true, at: Date.now() } : p ? { ok: false, error: p.text, ...(shown ? linked(p) : {}) } : null;
+  // Background checks (manual=false) that fail say nothing in the UI; only manual checks surface errors.
+  update.result = m.state === 'none' ? { ok: true, at: Date.now() } : p ? (shown ? { ok: false, error: p.text, ...(shown ? linked(p) : {}) } : null) : null;
   panel();
   if (m.state === 'none') {
     update.available = null; update.manual = false;
@@ -2000,9 +2006,11 @@ function onUpdateStatus(m) {
     update.installing = false; menu();
     say(`I opened the download page for ALASHI ${m.version}. Install it the way you installed me.`, 'happy');
   } else if (m.state === 'downloading') {
-    say(`Downloading ALASHI ${m.version}…`, 'determined');
+    update.progress = m.progress ?? null;
+    say(`Downloading ALASHI ${m.version}… (${update.progress}%)`, 'determined');
+    panel();
   } else if (m.state === 'installed') {
-    update.done = m.version; update.installing = false; panel();
+    update.done = m.version; update.installing = false; update.progress = null; panel();
     say(`Installed ${m.version}. Restarting!`, 'happy');
   } else if (m.state === 'error') {
     update.installing = false; update.manual = false; menu();
@@ -2076,8 +2084,8 @@ async function syncPass() {
     if (!folderReady(dir)) { syncInfo = { at: syncInfo.at, error: 'the sync folder isn\'t there right now' }; return; }
     if (!config.syncDevice) { config.syncDevice = newDevice(); saveConfig(); }
     const snap = syncSnapshot();
-    // Memory written by a newer Roamies isn't loaded here, so it would read as everything deleted.
-    if (snap.readOnly) { syncInfo = { at: syncInfo.at, error: 'memory here is from a newer Roamies: update Roamies on this computer' }; return; }
+    // Memory written by a newer ALASHI isn't loaded here, so it would read as everything deleted.
+    if (snap.readOnly) { syncInfo = { at: syncInfo.at, error: 'memory here is from a newer ALASHI: update ALASHI on this computer' }; return; }
     // Memory here couldn't be read: forget what the last pass saw, so nothing counts as deleted here and the other
     // computers' copy comes back.
     if (!snap.trusted) logLine('sync', { recovering: true });
@@ -2205,7 +2213,7 @@ async function saveDiagnostics() {
     logLine('diagnostics', { bytes: (await fs.stat(file)).size });
     reveal(file);
     const where = path.basename(path.dirname(file)) || 'your home folder';
-    say(`Saved ${path.basename(file)} in ${where}. Attach it to an issue at github.com/KenKaiii/Roamies/issues, or send it to whoever is helping you.`, 'happy');
+    say(`Saved ${path.basename(file)} in ${where}. Attach it to an issue at github.com/dhruvware12/Alashi/issues, or send it to whoever is helping you.`, 'happy');
     panelNote(`Saved ${path.basename(file)} in ${where}.`);
   } catch (e) {
     console.error('diagnostics', e);
@@ -2230,9 +2238,9 @@ function menu() {
     ...(SNAP_OK ? [{ id: 'snap', label: 'Ask About an Area…', accel: keys().snap }] : []),
     { id: 'stop', label: 'Stop', enabled: busy },
     { id: 'diagnostics', label: 'Save Diagnostics…', enabled: !diagnosing },
-    ...(update.available ? [{ sep: true }, { id: 'install_update', label: update.page ? `Get Roamies ${update.available}…` : update.installing ? `Installing ${update.available}…` : `Install Update ${update.available} and Restart`, enabled: !update.installing }] : []),
+    ...(update.available ? [{ sep: true }, { id: 'install_update', label: update.page ? `Get ALASHI ${update.available}…` : update.installing ? `Installing ${update.available}…` : `Install Update ${update.available} and Restart`, enabled: !update.installing }] : []),
     { sep: true },
-    { id: 'quit', label: 'Quit Roamies' },
+    { id: 'quit', label: 'Quit ALASHI' },
   ];
   send({ type: 'menu', items });
   panel();
@@ -2315,7 +2323,7 @@ function panelState() {
     } : null,
     sound: !!config.sound, volume: volumeNow(), actions: !!config.allowActions, skipAllow: !!config.skipAllow, lite: !!config.lite, hybrid: { on: !!config.hybrid, jobs: JOB_KINDS.map((j) => ({ ...j, value: parseSpec(config.heavy?.[j.kind])?.spec ?? '' })), active: routed?.spec ?? '' }, subagents: { on: !!config.subagents, delegate: DELEGATE_MODES.includes(config.delegate) ? config.delegate : 'ask', crew: SUBAGENTS.map((s) => { const c = activeCrew(config.crew, crewSpec, hybridActive() ? config.heavy : null).find((x) => x.id === s.id); return { id: s.id, label: s.label, hint: s.hint, value: parseSpec(config.crew?.[s.id])?.spec ?? '', via: c?.via ?? '', uses: c?.spec.spec ?? '' }; }) }, efforts: Object.fromEntries(SLOTS.map((k) => [k, config.efforts?.[k] ?? ''])), fallbacks: { on: !!config.backups, slots: [0, 1].map((i) => parseSpec(config.fallbacks?.[i])?.spec ?? ''), limited: limits.list().filter((l) => !l.key.includes(':') && (isQuota(l.kind) || l.kind === 'busy')).map((l) => ({ label: PROVIDER_LABELS[l.key] ?? l.key, until: l.until })), unavailable: limits.list().filter((l) => !(isQuota(l.kind) || l.kind === 'busy')).map((l) => ({ label: PROVIDER_LABELS[l.key] ?? modelName(l.key.split(':').slice(1).join(':')) ?? l.key, why: becauseOf(l.kind), until: l.until })), using: routed && /^backup/.test(routed.slot ?? '') ? routed.spec : '' }, notch: notchMode(), notchReal: notchScreen, brief: { on: !!config.morningBrief, todoist: !!config.briefTodoist, canTodoist: HANDS_OK }, focus: HANDS_OK ? { until: focusBlock?.until ?? null, task: focusBlock?.task ?? '', list: distractionList(), custom: !!config.distractions } : null, sync: { dir: config.syncDir || '', at: syncInfo.at, error: syncInfo.error, paused: !!syncInfo.paused }, gameMode: HANDS_OK ? config.gameSidebar !== false : null,
     login: login.supported ? { on: login.on } : null,
-    update: { available: update.available, installing: update.installing, checking: update.checking, result: update.result, page: update.page, done: update.done },
+    update: { available: update.available, installing: update.installing, checking: update.checking, result: update.result, page: update.page, done: update.done, progress: update.progress },
     intro: !!intro,
     // The latest error anyone saw, for Copy last error.
     problem: lastProblem ? { code: lastProblem.code, at: lastProblem.at } : null,
@@ -2905,6 +2913,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     ui({ kind: 'look', look: config.look ?? 'classic' });
     if (config.onboarded) ui({ kind: 'greet' });
     agents.sync();
+    // Automatic update check after initialization (non-blocking, after app is ready),
+    // then periodic checks every 6 hours. Never checks while installing or already checking.
+    setTimeout(() => { if (!update.checking && !update.installing) checkUpdates(false); }, 5000);
+    setInterval(() => { if (!update.checking && !update.installing && Date.now() - lastCheck > CHECK_INTERVAL) checkUpdates(false); }, CHECK_INTERVAL);
   } else if (m.type?.startsWith('ob_') || m.type?.startsWith('chat_') || m.type === 'set_keys' || m.type === 'set_actions' || m.type === 'set_login' || m.type === 'keybind_error') onGuide(m).catch((e) => console.error('guide', e));
   else if (m.type?.startsWith('voice')) onVoice(m);
   else if (m.type === 'snap') areaSnap();

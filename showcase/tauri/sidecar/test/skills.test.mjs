@@ -143,5 +143,5 @@ console.log('skills ok');
   assert.equal(fs.readdirSync(K.SKILLS_DIR).filter((n) => n.startsWith('.')).length, 0, 'a refused install leaves nothing behind');
   console.log('skills install tests: passed');
 }
-assert.equal(K.SKILLS_DIR, path.join(TMP, 'Roamies', 'Skills'), 'skills sit in the visible Roamies folder, beside Agents');
+assert.equal(K.SKILLS_DIR, path.join(TMP, '.alashi', 'Skills'), 'skills sit in the visible .alashi folder, beside Agents');
 console.log('skills folder tests: passed');

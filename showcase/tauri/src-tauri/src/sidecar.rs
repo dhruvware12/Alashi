@@ -10,9 +10,9 @@ fn find_node() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("ROAMIES_NODE") {
         return Some(PathBuf::from(p));
     }
-    // The Node.js shipped inside the app (bundle.externalBin), so users don't need Node installed. Named roamies-node:
-    // a .deb installs it as /usr/bin/roamies-node, and /usr/bin/node belongs to the nodejs package (#67).
-    if let Some(p) = helper_binary("roamies-node") {
+    // The Node.js shipped inside the app (bundle.externalBin), so users don't need Node installed. Named alashi-node:
+    // a .deb installs it as /usr/bin/alashi-node, and /usr/bin/node belongs to the nodejs package (#67).
+    if let Some(p) = helper_binary("alashi-node") {
         return Some(p);
     }
     // GUI apps don't get the shell's PATH on macOS, so check the usual installs too.
@@ -45,10 +45,10 @@ const BACKOFF_SECS: [u64; 3] = [1, 3, 10];
 pub(crate) fn spawn_sidecar(app: &AppHandle) {
     let Some(node) = find_node() else {
         eprintln!(
-            "sidecar: Node.js not found (ROAMIES_NODE={:?}, PATH={:?}, roamies-node={:?})",
+            "sidecar: Node.js not found (ROAMIES_NODE={:?}, PATH={:?}, alashi-node={:?})",
             std::env::var("ROAMIES_NODE").ok(),
             std::env::var("PATH").ok(),
-            helper_binary("roamies-node"),
+            helper_binary("alashi-node"),
         );
         fallback_menu(app, "ALASHI is missing a part; reinstall it");
         return;
@@ -70,7 +70,7 @@ pub(crate) fn spawn_sidecar(app: &AppHandle) {
     hide_console(&mut cmd);
     cmd.arg(&script)
         .env("ROAMIES_VERSION", app.package_info().version.to_string())
-        .env("ROAMIES_HANDS", helper_binary("roamies-hands").map(|p| p.to_string_lossy().into_owned()).unwrap_or_default())
+        .env("ROAMIES_HANDS", helper_binary("alashi-hands").map(|p| p.to_string_lossy().into_owned()).unwrap_or_default())
         .env("GG_DATA_DIR", data_dir())
         // Tests and benchmarks set ROAMIES_DATA_DIR to an isolated folder; the sidecar inherits it from the parent
         // environment (Command inherits the parent env by default), so no override is needed here. When unset,
@@ -100,7 +100,7 @@ pub(crate) fn spawn_sidecar(app: &AppHandle) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("sidecar: spawn failed: {e}");
-            fallback_menu(app, &format!("Roamies failed to start: {e}"));
+            fallback_menu(app, &format!("ALASHI failed to start: {e}"));
             return;
         }
     };
@@ -141,7 +141,7 @@ pub(crate) fn spawn_sidecar(app: &AppHandle) {
         };
         let app2 = app.clone();
         if attempt > BACKOFF_SECS.len() {
-            let _ = app.run_on_main_thread(move || fallback_menu(&app2, "Roamies stopped"));
+            let _ = app.run_on_main_thread(move || fallback_menu(&app2, "ALASHI stopped"));
             return;
         }
         thread::sleep(Duration::from_secs(BACKOFF_SECS[attempt - 1]));
