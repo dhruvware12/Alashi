@@ -37,7 +37,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg1RjdGNjE2RDA2OUE1N0MKUldSOHBXblFGdmIzaGJ1V3F0UkIrVmk2dGRwbXVQR3h4MWpQZHhJRzJPZVltR0pvQWFOcWticGwK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXkgNTlDNDMxRTkzQkMzRDU3MQ0KUldSeDFjTTc2VEhFV1F6MGZzWmxTRE5uVzdZUHhsQTlEdXdBczVvS1h3N1Q1azBndFQrOHhYTUYNCg==",
       "endpoints": [
         "https://github.com/dhruvware12/Alashi/releases/latest/download/latest.json",
         "https://raw.githubusercontent.com/dhruvware12/Alashi/updates/latest.json"
