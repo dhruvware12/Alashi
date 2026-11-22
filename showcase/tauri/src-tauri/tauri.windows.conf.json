@@ -8,9 +8,9 @@
       "onnxruntime/onnxruntime.dll": "onnxruntime.dll"
     },
     "externalBin": [
-      "binaries/roamies-voice",
-      "binaries/roamies-hands",
-      "binaries/roamies-node"
+      "binaries/alashi-voice",
+      "binaries/alashi-hands",
+      "binaries/alashi-node"
     ]
   }
 }

@@ -416,7 +416,7 @@ fn diagnostics(app: &AppHandle) -> Value {
         "panel": panel,
         "windows": app.webview_windows().keys().cloned().collect::<Vec<_>>(),
         "voice_helper": voice_binary().map(|p| p.exists()),
-        "hands_helper": helper_binary("roamies-hands").map(|p| p.exists()),
+        "hands_helper": helper_binary("alashi-hands").map(|p| p.exists()),
         "voice_running": app.state::<Voice>().0.lock().map(|v| v.is_some()).unwrap_or(false),
         "permissions": perms,
         "microphones": mics,
@@ -425,7 +425,7 @@ fn diagnostics(app: &AppHandle) -> Value {
 
 /// Accessibility (reading and controlling other apps) is checked by the hands helper.
 fn accessibility(prompt: bool) -> &'static str {
-    let Some(bin) = helper_binary("roamies-hands") else { return "unknown" };
+    let Some(bin) = helper_binary("alashi-hands") else { return "unknown" };
     let mut cmd = Command::new(bin);
     cmd.arg("trusted");
     if prompt {
@@ -499,7 +499,7 @@ async fn screen_check() -> Value {
         return json!({ "unsupported": true });
     }
     tauri::async_runtime::spawn_blocking(|| {
-        let Some(bin) = helper_binary("roamies-hands") else { return json!({ "unsupported": true }) };
+        let Some(bin) = helper_binary("alashi-hands") else { return json!({ "unsupported": true }) };
         Command::new(bin)
             .arg("screencheck")
             .stdin(Stdio::null())
@@ -522,7 +522,7 @@ fn perm_guide(app: AppHandle, kind: Option<String>) {
     #[cfg(target_os = "macos")]
     {
         let Some(kind) = kind.filter(|k| k == "accessibility" || k == "screen") else { return };
-        let Some(bin) = helper_binary("roamies-hands") else { return };
+        let Some(bin) = helper_binary("alashi-hands") else { return };
         // The Roamies.app around this binary; a dev build has none, so the panel shows text only.
         let bundle = std::env::current_exe()
             .ok()
@@ -758,6 +758,7 @@ fn show_panel(app: &AppHandle, rect: Option<tauri::Rect>, toggle: bool) {
                 .visible(false);
             match b.build() {
                 Ok(w) => {
+                    let _ = w.open_devtools();
                     #[cfg(target_os = "macos")]
                     over_fullscreen(&w);
                     let app2 = app.clone();
@@ -1674,6 +1675,42 @@ fn update(app: &AppHandle, install: bool) {
                     let app2 = app.clone();
                     let m = json!({ "type": "update_status", "state": "available", "version": release.version, "page": page });
                     to_sidecar(&app, &m);
+                    // Step 1: graceful shutdown. Tell the sidecar not to restart, close all windows.
+                    sidecar::QUITTING.store(true, Ordering::SeqCst);
+                    for (_, w) in app.webview_windows() {
+                        let _ = w.close();
+                    }
+
+                    // Drop the sidecar stdin to close the pipe, causing the sidecar to exit.
+                    // Then wait for the sidecar thread to join (it calls child.wait() and sets state to None).
+                    let sidecar_state = &app.state::<Sidecar>().0;
+                    {
+                        let mut stdin_guard = sidecar_state.lock().unwrap();
+                        *stdin_guard = None;
+                    }
+                    // Wait for the sidecar thread to notice stdin closed, wait for child, and set state to None.
+                    // This happens in sidecar.rs:117 (child.wait()) then line 132 (state = None).
+                    // Timeout after 3 seconds to avoid deadlock.
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+                    let mut sidecar_exited = false;
+                    while std::time::Instant::now() < deadline {
+                        if sidecar_state.lock().unwrap().is_none() {
+                            sidecar_exited = true;
+                            break;
+                        }
+                        thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                    if !sidecar_exited {
+                        // Timeout: sidecar may still be running. Do not launch installer.
+                        let m = json!({
+                            "type": "update_status",
+                            "state": "error",
+                            "error": "Sidecar did not exit in time for update. Please close ALASHI manually and retry."
+                        });
+                        let _ = to_sidecar(&app2, &m);
+                        return;
+                    }
+
                     match release.download_and_install(
                         |downloaded, total| { let _ = (downloaded, total); }, // progress could be reported, but the sidecar doesn't use it yet
                         || {
@@ -1935,6 +1972,8 @@ fn main() {
         .run(|_, e| {
             if matches!(e, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
                 sidecar::QUITTING.store(true, Ordering::SeqCst);
+                // Wait for sidecar to exit event loop.
+                thread::sleep(Duration::from_millis(600));
             }
         });
 }

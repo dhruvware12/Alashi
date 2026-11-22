@@ -1,4 +1,4 @@
-// Where Roamies keeps everything: one visible folder, ~/Roamies, with Agents/, Skills/ and Data/ (settings, memory,
+// Where ALASHI keeps everything: one visible folder, ~/.alashi, with Agents/, Skills/ and Data/ (settings, memory,
 // chats, logs, usage, jobs, MCP servers, sync state, catalogs). Sign-in stays in ~/.gg/auth.json (shared with GG Coder).
 // Data used to live in ~/.gg/sidekick and ~/.gg/sidekick.json. The first run after the update copies it across,
 // checks the copy and only then switches; the old copy is never deleted, and if anything fails this run keeps using it.
@@ -11,14 +11,14 @@ const SKIP = (name) => name === '.DS_Store' || name.endsWith('.tmp') || name ===
 const TMP = /^\.Data-(\d+)\.tmp$/;
 
 export const baseDir = (env = process.env) => env.ROAMIES_DATA_DIR || os.homedir();
-export const roamiesDir = (env = process.env) => path.join(baseDir(env), 'Roamies');
+export const roamiesDir = (env = process.env) => path.join(baseDir(env), '.alashi');
 
 // The old layout: ~/.gg/sidekick and ~/.gg/sidekick.json, or <ROAMIES_DATA_DIR>/sidekick(.json) in tests.
 export const oldBase = (env = process.env) => env.ROAMIES_DATA_DIR || path.join(os.homedir(), '.gg');
 
-/** Every path, new and old: `base` holds Roamies/, `old` holds the old sidekick/ and sidekick.json. */
+/** Every path, new and old: `base` holds .alashi/, `old` holds the old sidekick/ and sidekick.json. */
 export function layout(base, old) {
-  const root = path.join(base, 'Roamies');
+  const root = path.join(base, '.alashi');
   return { root, dir: path.join(root, 'Data'), config: path.join(root, 'Data', 'settings.json'), oldDir: path.join(old, 'sidekick'), oldConfig: path.join(old, 'sidekick.json') };
 }
 
@@ -62,7 +62,7 @@ function verify(files, tmp) {
 }
 
 /**
- * Moves old data into Roamies/Data once: copy to a temporary folder, check it, rename it into place in one step.
+ * Moves old data into ~/.alashi/Data once: copy to a temporary folder, check it, rename it into place in one step.
  * Returns the paths to use this run; `legacy` means the copy failed and the old location is still in use.
  * `agent` (a background agent's process) never migrates, it follows whatever the main process left.
  * `afterCopy(tmp)` is for tests.
@@ -103,7 +103,7 @@ export function migrateData({ base = baseDir(), old = oldBase(), agent = false, 
   }
   if (isDir(L.oldDir)) {
     try {
-      writeFileSync(path.join(L.oldDir, 'MOVED.txt'), `Roamies now keeps its data in ${L.dir}\n(settings are ${L.config}).\n\nThis folder and ${L.oldConfig} are the copy from before the move,\nkept in case you go back to an older version. You can delete them.\n`);
+      writeFileSync(path.join(L.oldDir, 'MOVED.txt'), `ALASHI now keeps its data in ${L.dir}\n(settings are ${L.config}).\n\nThis folder and ${L.oldConfig} are the copy from before the move,\nkept in case you go back to an older version. You can delete them.\n`);
     } catch (e) { log(`couldn't write MOVED.txt: ${e.message}`); }
   }
   log(`moved data to ${L.dir}`);

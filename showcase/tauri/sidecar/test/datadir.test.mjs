@@ -11,8 +11,8 @@ process.env.ROAMIES_DATA_DIR = path.join(TMP, 'import');
 process.on('exit', () => fs.rmSync(TMP, { recursive: true, force: true }));
 const { migrateData, dataPaths, DATA_DIR, CONFIG_PATH, ROAMIES_DIR } = await import('../datadir.mjs');
 
-assert.equal(ROAMIES_DIR, path.join(TMP, 'import', 'Roamies'), 'ROAMIES_DATA_DIR stands in for the home folder');
-assert.equal(DATA_DIR, path.join(TMP, 'import', 'Roamies', 'Data'));
+assert.equal(ROAMIES_DIR, path.join(TMP, 'import', '.alashi'), 'ROAMIES_DATA_DIR stands in for the home folder');
+assert.equal(DATA_DIR, path.join(TMP, 'import', '.alashi', 'Data'));
 assert.equal(CONFIG_PATH, path.join(DATA_DIR, 'settings.json'));
 
 let n = 0;
@@ -40,8 +40,8 @@ const full = {
 {
   const t = setup();
   const p = t.run();
-  assert.deepEqual([p.dir, p.legacy, p.migrated], [path.join(t.home, 'Roamies', 'Data'), false, false]);
-  assert.ok(!fs.existsSync(path.join(t.home, 'Roamies')), 'nothing is created until something is saved');
+  assert.deepEqual([p.dir, p.legacy, p.migrated], [path.join(t.home, '.alashi', 'Data'), false, false]);
+  assert.ok(!fs.existsSync(path.join(t.home, '.alashi')), 'nothing is created until something is saved');
 }
 
 // A full move: everything copied, settings renamed, junk skipped, the model renamed across, originals kept.
@@ -63,8 +63,8 @@ const full = {
   assert.equal(fs.readFileSync(path.join(t.old, 'sidekick', 'memory.json'), 'utf8'), memory, 'the old copy is kept');
   assert.equal(fs.readFileSync(path.join(t.old, 'sidekick.json'), 'utf8'), settings);
   const moved = fs.readFileSync(path.join(t.old, 'sidekick', 'MOVED.txt'), 'utf8');
-  assert.match(moved, /Roamies now keeps its data in/); assert.ok(moved.includes(D)); assert.match(moved, /You can delete them/);
-  assert.deepEqual(fs.readdirSync(path.join(t.home, 'Roamies')), ['Data'], 'no temporary folder left');
+  assert.match(moved, /ALASHI now keeps its data in/); assert.ok(moved.includes(D)); assert.match(moved, /You can delete them/);
+  assert.deepEqual(fs.readdirSync(path.join(t.home, '.alashi')), ['Data'], 'no temporary folder left');
   if (process.platform !== 'win32') assert.equal((fs.statSync(path.join(D, 'memory.json')).mode & 0o777).toString(8), '600', 'still private');
 
   // Running again changes nothing, even after the old copy changes.
@@ -90,7 +90,7 @@ const full = {
   const p = t.run({ afterCopy: (tmp) => fs.writeFileSync(path.join(tmp, 'memory.json'), '{"version":1') });
   assert.equal(p.legacy, true); assert.equal(p.migrated, false);
   assert.equal(p.dir, path.join(t.old, 'sidekick')); assert.equal(p.config, path.join(t.old, 'sidekick.json'));
-  assert.deepEqual(fs.readdirSync(path.join(t.home, 'Roamies')), [], 'the temporary folder is removed and Data/ never appears');
+  assert.deepEqual(fs.readdirSync(path.join(t.home, '.alashi')), [], 'the temporary folder is removed and Data/ never appears');
   assert.ok(fs.existsSync(path.join(t.old, 'sidekick', 'models')) && !fs.existsSync(path.join(t.old, 'sidekick', 'MOVED.txt')), 'the old place is untouched');
   assert.match(t.logs.join('\n'), /couldn't move data .*didn't copy whole/);
   const missing = setup(full).run({ afterCopy: (tmp) => fs.rmSync(path.join(tmp, 'sessions'), { recursive: true }) });
@@ -109,7 +109,7 @@ const full = {
 // Temporary folders left by a crash are cleared first; a live process's is left alone.
 {
   const t = setup(full);
-  const dead = path.join(t.home, 'Roamies', '.Data-999999999.tmp'), live = path.join(t.home, 'Roamies', `.Data-${process.ppid}.tmp`);
+  const dead = path.join(t.home, '.alashi', '.Data-999999999.tmp'), live = path.join(t.home, '.alashi', `.Data-${process.ppid}.tmp`);
   fs.mkdirSync(path.join(dead, 'sessions'), { recursive: true }); fs.writeFileSync(path.join(dead, 'memory.json'), 'half');
   fs.mkdirSync(live, { recursive: true });
   assert.ok(t.run().migrated);
@@ -121,7 +121,7 @@ const full = {
 {
   const t = setup(full);
   const p = t.run({ agent: true });
-  assert.equal(p.legacy, true); assert.ok(!fs.existsSync(path.join(t.home, 'Roamies')));
+  assert.equal(p.legacy, true); assert.ok(!fs.existsSync(path.join(t.home, '.alashi')));
   t.run();
   assert.equal(t.run({ agent: true }).legacy, false, 'and the new place once it exists');
 }
@@ -133,7 +133,7 @@ const full = {
   fs.writeFileSync(path.join(base, 'sidekick', 'memory.json'), memory);
   fs.writeFileSync(path.join(base, 'sidekick.json'), settings);
   const p = dataPaths({ ROAMIES_DATA_DIR: base });
-  assert.equal(p.dir, path.join(base, 'Roamies', 'Data')); assert.ok(p.migrated);
+  assert.equal(p.dir, path.join(base, '.alashi', 'Data')); assert.ok(p.migrated);
   assert.equal(fs.readFileSync(path.join(p.dir, 'settings.json'), 'utf8'), settings);
   assert.equal(dataPaths({ ROAMIES_DATA_DIR: base }), p, 'resolved once');
 }
