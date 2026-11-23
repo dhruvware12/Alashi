@@ -1690,7 +1690,7 @@ fn update(app: &AppHandle, install: bool) {
                     // Wait for the sidecar thread to notice stdin closed, wait for child, and set state to None.
                     // This happens in sidecar.rs:117 (child.wait()) then line 132 (state = None).
                     // Timeout after 3 seconds to avoid deadlock.
-                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
                     let mut sidecar_exited = false;
                     while std::time::Instant::now() < deadline {
                         if sidecar_state.lock().unwrap().is_none() {
